@@ -19,7 +19,6 @@ public:
 	QuadTreeNode(
 		APlanetActor* InParentActor, 
 		TSharedPtr<INoiseGenerator> InNoiseGen, 
-		FRWLock& InStructureLock, 
 		FString InId, 
 		int InMinDepth, 
 		int InMaxDepth, 
@@ -50,13 +49,9 @@ public:
 	void CollectLeaves(TArray<TSharedPtr<QuadTreeNode>>& LeafNodes);
 
 	FMeshStreamBuilders InitializeStreamBuilders(FRealtimeMeshStreamSet& inMeshStream, int Resolution);
-	FMeshStreamBuilders InitializeStreamBuilders(FRealtimeMeshStreamSet& inMeshStream, TSharedPtr<FMeshTemplate> inTemplate);
+
 	FVector GetFacePoint(float step, double x, double y);
 	FColor EncodeDepthColor(float depth);
-
-	void ProcessChunkTemplate(TSharedPtr<FMeshTemplate> mTemplate, FMeshStreamBuilders& landBuilders, FMeshStreamBuilders& seaBuilders, FRealtimeMeshStreamSet& landStreamSet, FRealtimeMeshStreamSet& seaStreamSet);
-
-	void GenerateMeshDataFromTemplate();
 
 	int GenerateVertex(double x, double y, double step, FMeshStreamBuilders& landBuilders, FMeshStreamBuilders& seaBuilders);
 
@@ -124,7 +119,6 @@ public:
 
 protected:
 	FRWLock MeshDataLock;
-	FRWLock& TreeStructureLock;
 	void RecurseRemoveChildren(TSharedPtr<QuadTreeNode> InNode);
 	void RecurseUpdateLod(TWeakPtr<QuadTreeNode> InNode);
 };

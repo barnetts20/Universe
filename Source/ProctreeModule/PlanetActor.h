@@ -22,6 +22,8 @@ class PROCTREEMODULE_API APlanetActor : public ARealtimeMeshActor
 	
 public:
 	APlanetActor();
+
+	void InitializeFaceTransforms();
 	
 	void BeginDestroy();
 	
@@ -66,6 +68,8 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
 	float NoiseFrequency = 1.0;
+
+	TMap<EFaceDirection, FCubeTransform> FaceTransforms;
 
 	TQueue<TFunction<void()>> TaskQueue;
 
@@ -123,17 +127,15 @@ protected:
 
 	//Settings and camera data
 	double CameraFov = 90;
-	FVector CameraOverridePositionInternal;
 	bool UseCameraPositionOverrideInternal = false;
+	FVector CameraOverridePositionInternal;
 	FVector LastCameraPositionInternal;
 	FRotator LastCameraRotationInternal;
-
-	//Structural data, noise generator, mesh queue
-	//TSharedPtr<PlanetNoiseGenerator2> NoiseGen;
 
 	int32 MaxTasksProcessing = 30;
 	int32 TasksProcessing = 0;
 	FCriticalSection TaskCounterLock; // Lock to protect the counter
+
 	//Node Locks
 	FRWLock xPosLock;
 	FRWLock xNegLock;

@@ -11,21 +11,20 @@
 #include <Mesh/RealtimeMeshAlgo.h>
 
 //This structure is for internal use only, anytime it's data is needed it should be wrapped in a FMeshUpdateData struct
-QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FRWLock& InStructureLock, FString InId, int InMinDepth, int InMaxDepth, EFaceDirection InFaceDirection, FVector InCenter, float InSize, float InRadius) :
-	ParentActor(InParentActor),
-	NoiseGen(InNoiseGen),
-	TreeStructureLock(InStructureLock),
-	Id(InId),
-	MinDepth(InMinDepth),
-	MaxDepth(InMaxDepth),
-	FaceDirection(InFaceDirection),
-	Center(InCenter),
-	SphereRadius(InRadius),
-	Size(InSize),
-	HalfSize(this->Size * .5f),
-	QuarterSize(this->Size * .25f),
-	LandCentroid(this->Center.GetSafeNormal() * (this->SphereRadius) + this->ParentActor->GetActorLocation())
+QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FString InId, int InMinDepth, int InMaxDepth, EFaceDirection InFaceDirection, FVector InCenter, float InSize, float InRadius)
 {
+	ParentActor = InParentActor;
+	NoiseGen = InNoiseGen;
+	Id = InId;
+	MinDepth = InMinDepth;
+	MaxDepth = InMaxDepth;
+	FaceDirection = InFaceDirection;
+	Center = InCenter;
+	SphereRadius = InRadius;
+	Size = InSize;
+	HalfSize = Size * .5;
+	QuarterSize = HalfSize * .5;
+
 	lodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
 	
 	NeighborLodChangeMap.Add(EdgeOrientation::LEFT, false);
@@ -203,37 +202,37 @@ TFuture<void> QuadTreeNode::AsyncSplit(TSharedPtr<QuadTreeNode> inNode)
 
 			switch (inNode->FaceDirection)
 			{
-				case EFaceDirection::XPositive:
+				case EFaceDirection::X_POS:
 					n0Center = FVector(inNode->Center.X, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z - inNode->QuarterSize);
 					n1Center = FVector(inNode->Center.X, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z - inNode->QuarterSize);
 					n2Center = FVector(inNode->Center.X, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z + inNode->QuarterSize);
 					n3Center = FVector(inNode->Center.X, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z + inNode->QuarterSize);
 					break;
-				case EFaceDirection::XNegative:
+				case EFaceDirection::X_NEG:
 					n0Center = FVector(inNode->Center.X, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z + inNode->QuarterSize);
 					n1Center = FVector(inNode->Center.X, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z + inNode->QuarterSize);
 					n2Center = FVector(inNode->Center.X, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z - inNode->QuarterSize);
 					n3Center = FVector(inNode->Center.X, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z - inNode->QuarterSize);
 					break;
-				case EFaceDirection::YPositive:
+				case EFaceDirection::Y_POS:
 					n0Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z - inNode->QuarterSize);
 					n1Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z - inNode->QuarterSize);
 					n2Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z + inNode->QuarterSize);
 					n3Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z + inNode->QuarterSize);
 					break;
-				case EFaceDirection::YNegative:
+				case EFaceDirection::Y_NEG:
 					n0Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z + inNode->QuarterSize);
 					n1Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z + inNode->QuarterSize);
 					n2Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z - inNode->QuarterSize);
 					n3Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z - inNode->QuarterSize);
 					break;
-				case EFaceDirection::ZPositive:
+				case EFaceDirection::Z_POS:
 					n0Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z);
 					n1Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z);
 					n2Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z);
 					n3Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z);
 					break;
-				case EFaceDirection::ZNegative:
+				case EFaceDirection::Z_NEG:
 					n0Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z);
 					n1Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z);
 					n2Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z);
@@ -241,10 +240,10 @@ TFuture<void> QuadTreeNode::AsyncSplit(TSharedPtr<QuadTreeNode> inNode)
 					break;
 			}
 
-			TSharedPtr<QuadTreeNode> n0 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->TreeStructureLock, newId0, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n0Center, inNode->HalfSize, inNode->SphereRadius);
-			TSharedPtr<QuadTreeNode> n1 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->TreeStructureLock, newId1, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n1Center, inNode->HalfSize, inNode->SphereRadius);
-			TSharedPtr<QuadTreeNode> n2 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->TreeStructureLock, newId2, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n2Center, inNode->HalfSize, inNode->SphereRadius);
-			TSharedPtr<QuadTreeNode> n3 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->TreeStructureLock, newId3, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n3Center, inNode->HalfSize, inNode->SphereRadius);
+			TSharedPtr<QuadTreeNode> n0 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId0, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n0Center, inNode->HalfSize, inNode->SphereRadius);
+			TSharedPtr<QuadTreeNode> n1 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId1, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n1Center, inNode->HalfSize, inNode->SphereRadius);
+			TSharedPtr<QuadTreeNode> n2 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId2, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n2Center, inNode->HalfSize, inNode->SphereRadius);
+			TSharedPtr<QuadTreeNode> n3 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId3, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n3Center, inNode->HalfSize, inNode->SphereRadius);
 
 			n0->Parent = inNode;
 			n1->Parent = inNode;
@@ -407,49 +406,6 @@ FMeshStreamBuilders QuadTreeNode::InitializeStreamBuilders(FRealtimeMeshStreamSe
 	return Builders;
 }
 
-FMeshStreamBuilders QuadTreeNode::InitializeStreamBuilders(FRealtimeMeshStreamSet& inMeshStream, TSharedPtr<FMeshTemplate> inTemplate) {
-	FMeshStreamBuilders Builders;
-
-	Builders.NumVerts = inTemplate->Vertices.Num();
-	Builders.NumTriangles = inTemplate->Triangles.Num();;
-
-	Builders.PositionBuilder = new TRealtimeMeshStreamBuilder<FVector, FVector3f>(inMeshStream.AddStream(FRealtimeMeshStreams::Position, GetRealtimeMeshBufferLayout<FVector3f>()));
-	Builders.TangentBuilder = new TRealtimeMeshStreamBuilder<FRealtimeMeshTangentsHighPrecision, FRealtimeMeshTangentsNormalPrecision>(inMeshStream.AddStream(FRealtimeMeshStreams::Tangents, GetRealtimeMeshBufferLayout<FRealtimeMeshTangentsNormalPrecision>()));
-	Builders.TexCoordsBuilder = new TRealtimeMeshStreamBuilder<FVector2f, FVector2DHalf>(inMeshStream.AddStream(FRealtimeMeshStreams::TexCoords, GetRealtimeMeshBufferLayout<FVector2DHalf>()));
-	Builders.ColorBuilder = new TRealtimeMeshStreamBuilder<FColor>(inMeshStream.AddStream(FRealtimeMeshStreams::Color, GetRealtimeMeshBufferLayout<FColor>()));
-	Builders.TrianglesBuilder = new TRealtimeMeshStreamBuilder<TIndex3<uint32>>(inMeshStream.AddStream(FRealtimeMeshStreams::Triangles, GetRealtimeMeshBufferLayout<TIndex3<uint32>>()));
-	Builders.PolygroupsBuilder = new TRealtimeMeshStreamBuilder<uint32, uint16>(inMeshStream.AddStream(FRealtimeMeshStreams::PolyGroups, GetRealtimeMeshBufferLayout<uint16>()));
-
-	Builders.PositionBuilder->Reserve(Builders.NumVerts);
-	Builders.TangentBuilder->Reserve(Builders.NumVerts);
-	Builders.TexCoordsBuilder->Reserve(Builders.NumVerts);
-	Builders.ColorBuilder->Reserve(Builders.NumVerts);
-	Builders.TrianglesBuilder->Reserve(Builders.NumTriangles);
-	Builders.PolygroupsBuilder->Reserve(Builders.NumTriangles);
-
-	return Builders;
-}
-
-FVector QuadTreeNode::GetFacePoint(float step, double x, double y) {
-	FVector facePoint;
-	//Populate vertices and normals
-	switch (this->FaceDirection) {
-		case EFaceDirection::XPositive:
-			return FVector(this->Center.X, this->Center.Y + (-this->HalfSize + step * y), this->Center.Z + (-this->HalfSize + step * x));
-		case EFaceDirection::XNegative:
-			return FVector(this->Center.X, this->Center.Y + (-this->HalfSize + step * y), this->Center.Z + (this->HalfSize - step * x));
-		case EFaceDirection::YPositive:
-			return FVector(this->Center.X + (-this->HalfSize + step * x), this->Center.Y, this->Center.Z + (-this->HalfSize + step * y));
-		case EFaceDirection::YNegative:
-			return FVector(this->Center.X + (-this->HalfSize + step * x), this->Center.Y, this->Center.Z + (this->HalfSize - step * y));
-		case EFaceDirection::ZPositive:
-			return FVector(this->Center.X + (this->HalfSize - step * x), this->Center.Y + (-this->HalfSize + step * y), this->Center.Z);
-		case EFaceDirection::ZNegative:
-			return FVector(this->Center.X + (-this->HalfSize + step * x), this->Center.Y + (-this->HalfSize + step * y), this->Center.Z);
-	}
-	return facePoint;
-}
-
 FColor QuadTreeNode::EncodeDepthColor(float depth) {
 	union {
 		float f;
@@ -464,6 +420,26 @@ FColor QuadTreeNode::EncodeDepthColor(float depth) {
 	encodeColor.B = (depthUnion.i >> 8) & 0xFF;
 	encodeColor.A = depthUnion.i & 0xFF;
 	return encodeColor;
+}
+
+FVector QuadTreeNode::GetFacePoint(float step, double x, double y) {
+	FVector facePoint;
+	//Populate vertices and normals
+	switch (this->FaceDirection) {
+	case EFaceDirection::X_POS:
+		return FVector(this->Center.X, this->Center.Y + (-this->HalfSize + step * y), this->Center.Z + (-this->HalfSize + step * x));
+	case EFaceDirection::X_NEG:
+		return FVector(this->Center.X, this->Center.Y + (-this->HalfSize + step * y), this->Center.Z + (this->HalfSize - step * x));
+	case EFaceDirection::Y_POS:
+		return FVector(this->Center.X + (-this->HalfSize + step * x), this->Center.Y, this->Center.Z + (-this->HalfSize + step * y));
+	case EFaceDirection::Y_NEG:
+		return FVector(this->Center.X + (-this->HalfSize + step * x), this->Center.Y, this->Center.Z + (this->HalfSize - step * y));
+	case EFaceDirection::Z_POS:
+		return FVector(this->Center.X + (this->HalfSize - step * x), this->Center.Y + (-this->HalfSize + step * y), this->Center.Z);
+	case EFaceDirection::Z_NEG:
+		return FVector(this->Center.X + (-this->HalfSize + step * x), this->Center.Y + (-this->HalfSize + step * y), this->Center.Z);
+	}
+	return facePoint;
 }
 
 int QuadTreeNode::GenerateVertex(double x, double y, double step, FMeshStreamBuilders& landBuilders, FMeshStreamBuilders& seaBuilders) {
