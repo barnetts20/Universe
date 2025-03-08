@@ -118,7 +118,7 @@ void QuadTreeNode::TrySetLod() {
 		if (ShouldSplit(adjustedCentroid, lastCamPos, fov, k)) {
 			this->CanMerge = false;
 			if (this->LastRenderedState) {
-				this->AsyncSplit(this->AsShared());
+				this->Split(this->AsShared());
 			}
 		}
 		else if ((parent.IsValid() && parent.Pin()->GetDepth() >= this->MinDepth) && k * parentSize < s(d2, fov)) {
@@ -138,20 +138,9 @@ bool QuadTreeNode::ShouldSplit(FVector centroid, FVector lastCamPos, double fov,
 	return this->GetDepth() < this->MinDepth || (this->GetDepth() < this->MaxDepth && k * this->MaxNodeRadius * this->ParentActor->GetActorScale().X > s(d1, fov));
 }
 
-TFuture<bool> QuadTreeNode::UpdateLod()
+void QuadTreeNode::UpdateLod()
 {
-	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
-	TFuture<bool> Future = Promise->GetFuture();
-	TWeakPtr<QuadTreeNode> wThis = this->AsShared();
-	AsyncTask(ENamedThreads::AnyHiPriThreadNormalTask, [wThis, Promise = MoveTemp(Promise)]() mutable {
-
-		auto InTimestamp = FPlatformTime::Seconds();
-		if (wThis.IsValid()) {
-			wThis.Pin()->RecurseUpdateLod(wThis);
-		}
-		Promise->SetValue(true);
-	});
-	return Future;
+	RecurseUpdateLod(this->AsShared());
 }
 
 void QuadTreeNode::CollectLeaves(TArray<TSharedPtr<QuadTreeNode>>& LeafNodes) {
@@ -165,128 +154,88 @@ void QuadTreeNode::CollectLeaves(TArray<TSharedPtr<QuadTreeNode>>& LeafNodes) {
 	}
 }
 
-TFuture<void> QuadTreeNode::InitializeNode() {
-	TSharedPtr<TPromise<void>> Promise = MakeShared<TPromise<void>>();
-	TFuture<void> Future = Promise->GetFuture();
-	TSharedPtr<QuadTreeNode> sharedThis = this->AsShared();
-
-	AsyncTask(ENamedThreads::GameThread, [sharedThis, Promise = MoveTemp(Promise)]() {
-		sharedThis->InitializeChunk();
-		Promise->SetValue();
-	});
-	return Future;
-}
-
-TFuture<void> QuadTreeNode::AsyncSplit(TSharedPtr<QuadTreeNode> inNode)
+void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 {
-	TSharedPtr<TPromise<void>> Promise = MakeShared<TPromise<void>>();
-	TFuture<void> Future = Promise->GetFuture();
+	if (!inNode.IsValid() || !inNode->IsLeaf())
+	{
+		return;
+	}
+	FString opId = inNode->Id;
+	int opLvl = inNode->GetDepth();
 
-	AsyncTask(ENamedThreads::AnyHiPriThreadHiPriTask, [inNode, Promise = MoveTemp(Promise)]() mutable
-		{
-			FWriteScopeLock WriteLock(inNode->MeshDataLock);
-			if (!inNode.IsValid() || !inNode->IsLeaf())
-			{
-				Promise->SetValue();
-				return;
-			}
-			FString opId = inNode->Id;
-			int opLvl = inNode->GetDepth();
+	FString newId0 = "0" + opId;
+	FString newId1 = "1" + opId;
+	FString newId2 = "2" + opId;
+	FString newId3 = "3" + opId;
 
-			FString newId0 = "0" + opId;
-			FString newId1 = "1" + opId;
-			FString newId2 = "2" + opId;
-			FString newId3 = "3" + opId;
+	// Define child offsets in face-local coordinates
+	struct ChildOffset {
+		double X, Y;
+	};
 
-			// Define child offsets in face-local coordinates
-			struct ChildOffset {
-				double X, Y;
-			};
+	ChildOffset childOffsets[4] = {
+		{-inNode->QuarterSize, -inNode->QuarterSize}, // Bottom-left
+		{inNode->QuarterSize, -inNode->QuarterSize},  // Bottom-right
+		{-inNode->QuarterSize, inNode->QuarterSize},  // Top-left
+		{inNode->QuarterSize, inNode->QuarterSize}    // Top-right
+	};
 
-			ChildOffset childOffsets[4] = {
-				{-inNode->QuarterSize, -inNode->QuarterSize}, // Bottom-left
-				{inNode->QuarterSize, -inNode->QuarterSize},  // Bottom-right
-				{-inNode->QuarterSize, inNode->QuarterSize},  // Top-left
-				{inNode->QuarterSize, inNode->QuarterSize}    // Top-right
-			};
+	// Calculate child centers using face transforms
+	FVector childCenters[4];
+	for (int i = 0; i < 4; i++) {
+		// Start with parent center
+		childCenters[i] = inNode->Center;
 
-			// Calculate child centers using face transforms
-			FVector childCenters[4];
-			for (int i = 0; i < 4; i++) {
-				// Start with parent center
-				childCenters[i] = inNode->Center;
+		// Get the local offsets
+		double normX = childOffsets[i].X;
+		double normY = childOffsets[i].Y;
 
-				// Get the local offsets
-				double normX = childOffsets[i].X;
-				double normY = childOffsets[i].Y;
+		// Get axis mappings from face transform
+		int xAxisIndex = inNode->FaceTransform.AxisMap[0];
+		int yAxisIndex = inNode->FaceTransform.AxisMap[1];
+		int normalAxisIndex = inNode->FaceTransform.AxisMap[2];
 
-				// Get axis mappings from face transform
-				int xAxisIndex = inNode->FaceTransform.AxisMap[0];
-				int yAxisIndex = inNode->FaceTransform.AxisMap[1];
-				int normalAxisIndex = inNode->FaceTransform.AxisMap[2];
+		int xAxisSign = inNode->FaceTransform.AxisDir[0];
+		int yAxisSign = inNode->FaceTransform.AxisDir[1];
+		int normalAxisSign = inNode->FaceTransform.AxisDir[2];
 
-				int xAxisSign = inNode->FaceTransform.AxisDir[0];
-				int yAxisSign = inNode->FaceTransform.AxisDir[1];
-				int normalAxisSign = inNode->FaceTransform.AxisDir[2];
+		// Apply offsets to correct axes
+		double offsets[3] = { 0, 0, 0 };
+		offsets[xAxisIndex] += xAxisSign * normX;
+		offsets[yAxisIndex] += yAxisSign * normY;
 
-				// Apply offsets to correct axes
-				double offsets[3] = { 0, 0, 0 };
-				offsets[xAxisIndex] += xAxisSign * normX;
-				offsets[yAxisIndex] += yAxisSign * normY;
-
-				// Apply calculated offsets
-				childCenters[i].X += offsets[0];
-				childCenters[i].Y += offsets[1];
-				childCenters[i].Z += offsets[2];
-			}
-
-			TSharedPtr<QuadTreeNode> n0 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId0, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[0], inNode->HalfSize, inNode->SphereRadius);
-			TSharedPtr<QuadTreeNode> n1 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId1, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[1], inNode->HalfSize, inNode->SphereRadius);
-			TSharedPtr<QuadTreeNode> n2 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId2, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[2], inNode->HalfSize, inNode->SphereRadius);
-			TSharedPtr<QuadTreeNode> n3 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId3, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[3], inNode->HalfSize, inNode->SphereRadius);
-
-			n0->Parent = inNode;
-			n1->Parent = inNode;
-			n2->Parent = inNode;
-			n3->Parent = inNode;
-
-			n0->GenerateMeshData();
-			n1->GenerateMeshData();
-			n2->GenerateMeshData();
-			n3->GenerateMeshData();
-
-			inNode->Children.Add(n0);
-			inNode->Children.Add(n1);
-			inNode->Children.Add(n2);
-			inNode->Children.Add(n3);
-
-			Async(EAsyncExecution::TaskGraphMainThread, [n0, n1, n2, n3, inNode, Promise = MoveTemp(Promise)]() {
-				n0->InitializeChunk();
-				n1->InitializeChunk();
-				n2->InitializeChunk();
-				n3->InitializeChunk();
-				inNode->SetChunkVisibility(false);
-				Promise->SetValue();
-			});
-		});
-	return Future;
-}
-
-TFuture<void> QuadTreeNode::AsyncMerge(TSharedPtr<QuadTreeNode> inNode) 
-{
-	TSharedPtr<TPromise<void>> Promise = MakeShared<TPromise<void>>();
-	TFuture<void> Future = Promise->GetFuture();
-	
-	if (!inNode.IsValid() || inNode->IsLeaf()) {
-		Promise->SetValue();
-		return Future;
+		// Apply calculated offsets
+		childCenters[i].X += offsets[0];
+		childCenters[i].Y += offsets[1];
+		childCenters[i].Z += offsets[2];
 	}
 
-	Async(EAsyncExecution::TaskGraphMainThread, [inNode, Promise = MoveTemp(Promise)]() mutable {
-	//inNode->ParentActor->EnqueueTask([inNode, Promise = MoveTemp(Promise)]() mutable {
-		//FWriteScopeLock WriteLock(inNode->MeshDataLock);
+	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId0, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[0], inNode->HalfSize, inNode->SphereRadius));
+	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId1, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[1], inNode->HalfSize, inNode->SphereRadius));
+	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId2, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[2], inNode->HalfSize, inNode->SphereRadius));
+	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId3, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[3], inNode->HalfSize, inNode->SphereRadius));
+
+	for (auto child : Children) {
+		child->Parent = inNode;
+		child->GenerateMeshData();
+	}
+
+	Async(EAsyncExecution::TaskGraphMainThread, [this, inNode]() {
+		for (auto child : Children) {
+			child->InitializeChunk();
+		}
+		inNode->SetChunkVisibility(false);
+	});
+}
+
+void QuadTreeNode::Merge(TSharedPtr<QuadTreeNode> inNode)
+{
+	if (!inNode.IsValid() || inNode->IsLeaf()) {
+		return;
+	}
+
+	Async(EAsyncExecution::TaskGraphMainThread, [inNode]() mutable {
 		if (!inNode.IsValid() || inNode->IsLeaf()) {
-			Promise->SetValue();
 			return;
 		}
 		inNode->SetChunkVisibility(true);
@@ -295,10 +244,7 @@ TFuture<void> QuadTreeNode::AsyncMerge(TSharedPtr<QuadTreeNode> inNode)
 		inNode->Children[2]->DestroyChunk();
 		inNode->Children[3]->DestroyChunk();
 		inNode->Children.Empty();
-
-		Promise->SetValue();
 	});
-	return Future;
 }
 
 void QuadTreeNode::TryMerge()
@@ -317,7 +263,7 @@ void QuadTreeNode::TryMerge()
 	}
 	if (willMerge) {
 		TSharedPtr<QuadTreeNode> sharedThis = this->AsShared();
-		this->AsyncMerge(sharedThis);
+		this->Merge(sharedThis);
 	}
 }
 
@@ -361,7 +307,6 @@ void QuadTreeNode::DestroyChunk() {
 	if (this->IsInitialized && this->ChunkComponent) {
 		this->ParentActor->RemoveOwnedComponent(this->ChunkComponent);
 		this->ChunkComponent->DestroyComponent();
-		//this->ChunkComponent = nullptr;
 	}
 }
 

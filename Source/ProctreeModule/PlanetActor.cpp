@@ -129,9 +129,9 @@ void APlanetActor::UpdateLOD()
 {
 	Async(EAsyncExecution::LargeThreadPool, [this]() {
 		TArray<TSharedPtr<QuadTreeNode>> leaves;
-		for (int i = 0; i < 6; i++) {
+		ParallelFor(6, [&](int32 i) {
 			RootNodes[i]->UpdateLod();
-		}
+		});
 	});
 }
 

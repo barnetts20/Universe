@@ -43,8 +43,7 @@ public:
 	void TryMerge();
 
 	//LOD and Mesh Update Functions
-	TFuture<bool> UpdateLod();
-	TFuture<void> InitializeNode();
+	void UpdateLod();
 
 	void CollectLeaves(TArray<TSharedPtr<QuadTreeNode>>& LeafNodes);
 
@@ -54,13 +53,15 @@ public:
 	FColor EncodeDepthColor(float depth);
 
 	int GenerateVertex(double x, double y, double step, FMeshStreamBuilders& landBuilders, FMeshStreamBuilders& seaBuilders);
-	bool ShouldFlipWinding() const;
+
 	void GenerateMeshData();
 	void InitializeChunk();
 	void SetChunkVisibility(bool inVisibility);
 	void DestroyChunk();
 
+	void Split(TSharedPtr<QuadTreeNode> inNode);
 	TFuture<void> AsyncSplit(TSharedPtr<QuadTreeNode> inNode);
+	void Merge(TSharedPtr<QuadTreeNode> inNode);
 	TFuture<void> AsyncMerge(TSharedPtr<QuadTreeNode> inNode);
 	//External References	
 	APlanetActor* ParentActor;
