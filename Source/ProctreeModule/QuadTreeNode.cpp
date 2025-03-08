@@ -199,47 +199,52 @@ TFuture<void> QuadTreeNode::AsyncSplit(TSharedPtr<QuadTreeNode> inNode)
 			FString newId2 = "2" + opId;
 			FString newId3 = "3" + opId;
 
-			FVector n0Center, n1Center, n2Center, n3Center;
+			// Define child offsets in face-local coordinates
+			struct ChildOffset {
+				double X, Y;
+			};
 
-			switch (inNode->FaceDirection)
-			{
-				case EFaceDirection::X_POS:
-					n0Center = FVector(inNode->Center.X, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z - inNode->QuarterSize);
-					n1Center = FVector(inNode->Center.X, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z - inNode->QuarterSize);
-					n2Center = FVector(inNode->Center.X, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z + inNode->QuarterSize);
-					n3Center = FVector(inNode->Center.X, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z + inNode->QuarterSize);
-					break;
-				case EFaceDirection::X_NEG:
-					n0Center = FVector(inNode->Center.X, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z + inNode->QuarterSize);
-					n1Center = FVector(inNode->Center.X, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z + inNode->QuarterSize);
-					n2Center = FVector(inNode->Center.X, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z - inNode->QuarterSize);
-					n3Center = FVector(inNode->Center.X, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z - inNode->QuarterSize);
-					break;
-				case EFaceDirection::Y_POS:
-					n0Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z - inNode->QuarterSize);
-					n1Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z - inNode->QuarterSize);
-					n2Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z + inNode->QuarterSize);
-					n3Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z + inNode->QuarterSize);
-					break;
-				case EFaceDirection::Y_NEG:
-					n0Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z + inNode->QuarterSize);
-					n1Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z + inNode->QuarterSize);
-					n2Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z - inNode->QuarterSize);
-					n3Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y, inNode->Center.Z - inNode->QuarterSize);
-					break;
-				case EFaceDirection::Z_POS:
-					n0Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z);
-					n1Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z);
-					n2Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z);
-					n3Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z);
-					break;
-				case EFaceDirection::Z_NEG:
-					n0Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z);
-					n1Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y + inNode->QuarterSize, inNode->Center.Z);
-					n2Center = FVector(inNode->Center.X - inNode->QuarterSize, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z);
-					n3Center = FVector(inNode->Center.X + inNode->QuarterSize, inNode->Center.Y - inNode->QuarterSize, inNode->Center.Z);
-					break;
+			ChildOffset childOffsets[4] = {
+				{-inNode->QuarterSize, -inNode->QuarterSize}, // Bottom-left
+				{inNode->QuarterSize, -inNode->QuarterSize},  // Bottom-right
+				{-inNode->QuarterSize, inNode->QuarterSize},  // Top-left
+				{inNode->QuarterSize, inNode->QuarterSize}    // Top-right
+			};
+
+			// Calculate child centers using face transforms
+			FVector childCenters[4];
+			for (int i = 0; i < 4; i++) {
+				// Start with parent center
+				childCenters[i] = inNode->Center;
+
+				// Get the local offsets
+				double normX = childOffsets[i].X;
+				double normY = childOffsets[i].Y;
+
+				// Get axis mappings from face transform
+				int xAxisIndex = inNode->FaceTransform.AxisMap[0];
+				int yAxisIndex = inNode->FaceTransform.AxisMap[1];
+				int normalAxisIndex = inNode->FaceTransform.AxisMap[2];
+
+				int xAxisSign = inNode->FaceTransform.AxisDir[0];
+				int yAxisSign = inNode->FaceTransform.AxisDir[1];
+				int normalAxisSign = inNode->FaceTransform.AxisDir[2];
+
+				// Apply offsets to correct axes
+				double offsets[3] = { 0, 0, 0 };
+				offsets[xAxisIndex] += xAxisSign * normX;
+				offsets[yAxisIndex] += yAxisSign * normY;
+
+				// Apply calculated offsets
+				childCenters[i].X += offsets[0];
+				childCenters[i].Y += offsets[1];
+				childCenters[i].Z += offsets[2];
 			}
+
+			FVector n0Center = childCenters[0];
+			FVector n1Center = childCenters[1];
+			FVector n2Center = childCenters[2];
+			FVector n3Center = childCenters[3];
 
 			TSharedPtr<QuadTreeNode> n0 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId0, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, inNode->FaceTransform, n0Center, inNode->HalfSize, inNode->SphereRadius);
 			TSharedPtr<QuadTreeNode> n1 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId1, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, inNode->FaceTransform, n1Center, inNode->HalfSize, inNode->SphereRadius);
@@ -260,6 +265,7 @@ TFuture<void> QuadTreeNode::AsyncSplit(TSharedPtr<QuadTreeNode> inNode)
 			inNode->Children.Add(n1);
 			inNode->Children.Add(n2);
 			inNode->Children.Add(n3);
+
 			Async(EAsyncExecution::TaskGraphMainThread, [n0, n1, n2, n3, inNode, Promise = MoveTemp(Promise)]() {
 				n0->InitializeChunk();
 				n1->InitializeChunk();
@@ -424,23 +430,36 @@ FColor QuadTreeNode::EncodeDepthColor(float depth) {
 }
 
 FVector QuadTreeNode::GetFacePoint(float step, double x, double y) {
-	FVector facePoint;
-	//Populate vertices and normals
-	switch (this->FaceDirection) {
-	case EFaceDirection::X_POS:
-		return FVector(this->Center.X, this->Center.Y + (-this->HalfSize + step * y), this->Center.Z + (-this->HalfSize + step * x));
-	case EFaceDirection::X_NEG:
-		return FVector(this->Center.X, this->Center.Y + (-this->HalfSize + step * y), this->Center.Z + (this->HalfSize - step * x));
-	case EFaceDirection::Y_POS:
-		return FVector(this->Center.X + (-this->HalfSize + step * x), this->Center.Y, this->Center.Z + (-this->HalfSize + step * y));
-	case EFaceDirection::Y_NEG:
-		return FVector(this->Center.X + (-this->HalfSize + step * x), this->Center.Y, this->Center.Z + (this->HalfSize - step * y));
-	case EFaceDirection::Z_POS:
-		return FVector(this->Center.X + (this->HalfSize - step * x), this->Center.Y + (-this->HalfSize + step * y), this->Center.Z);
-	case EFaceDirection::Z_NEG:
-		return FVector(this->Center.X + (-this->HalfSize + step * x), this->Center.Y + (-this->HalfSize + step * y), this->Center.Z);
-	}
-	return facePoint;
+	// Create a result vector starting with the node's center
+	FVector result = this->Center;
+
+	// Get normalized coordinates in face-local space
+	double normX = -this->HalfSize + step * x;
+	double normY = -this->HalfSize + step * y;
+
+	// Get the axis indices and signs
+	int xAxisIndex = FaceTransform.AxisMap[0]; // Which world axis maps to face X
+	int yAxisIndex = FaceTransform.AxisMap[1]; // Which world axis maps to face Y
+	int normalAxisIndex = FaceTransform.AxisMap[2]; // Which world axis is the normal
+
+	int xAxisSign = FaceTransform.AxisDir[0]; // Direction of face X axis
+	int yAxisSign = FaceTransform.AxisDir[1]; // Direction of face Y axis
+	int normalAxisSign = FaceTransform.AxisDir[2]; // Direction of normal
+
+	// Create offset vector for each component
+	double offsets[3] = { 0, 0, 0 };
+
+	// Apply offsets to the appropriate axes
+	offsets[xAxisIndex] += xAxisSign * normX;
+	offsets[yAxisIndex] += yAxisSign * normY;
+	offsets[normalAxisIndex] = normalAxisSign * 0; // No offset along normal (already in Center)
+
+	// Apply the offsets to the result
+	result.X += offsets[0];
+	result.Y += offsets[1];
+	result.Z += offsets[2];
+
+	return result;
 }
 
 int QuadTreeNode::GenerateVertex(double x, double y, double step, FMeshStreamBuilders& landBuilders, FMeshStreamBuilders& seaBuilders) {
@@ -658,9 +677,10 @@ void QuadTreeNode::GenerateMeshData()
 			}
 
 			for (FIndex3UI aTriangle : TrianglesToAdd) {
-				landBuilders.TrianglesBuilder->Add(aTriangle);
+				auto triToAdd = (FaceTransform.bFlipWinding ? FIndex3UI(aTriangle.V0, aTriangle.V2, aTriangle.V1) : aTriangle);
+				landBuilders.TrianglesBuilder->Add(triToAdd);
 				landBuilders.PolygroupsBuilder->Add(0);
-				seaBuilders.TrianglesBuilder->Add(aTriangle);
+				seaBuilders.TrianglesBuilder->Add(triToAdd);
 				seaBuilders.PolygroupsBuilder->Add(1);
 			}
 		}

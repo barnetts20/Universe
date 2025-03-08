@@ -365,4 +365,6 @@ enum PROCTREEMODULE_API EChildPosition {
 struct PROCTREEMODULE_API FCubeTransform {
 	FIntVector3 AxisMap;
 	FIntVector3 AxisDir;
+
+	bool bFlipWinding = false;
 };

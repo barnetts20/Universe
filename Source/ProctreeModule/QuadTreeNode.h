@@ -55,7 +55,7 @@ public:
 	FColor EncodeDepthColor(float depth);
 
 	int GenerateVertex(double x, double y, double step, FMeshStreamBuilders& landBuilders, FMeshStreamBuilders& seaBuilders);
-
+	bool ShouldFlipWinding() const;
 	void GenerateMeshData();
 	void InitializeChunk();
 	void SetChunkVisibility(bool inVisibility);

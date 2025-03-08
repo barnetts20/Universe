@@ -19,37 +19,39 @@ APlanetActor::APlanetActor()
 }
 
 void APlanetActor::InitializeFaceTransforms() {
-	// X+ face: X axis is normal, Y and Z are tangent
+	// X+ face (points along +X axis)
 	FaceTransforms.Add(EFaceDirection::X_POS, {
 		FIntVector(1, 2, 0),  // Y=face X, Z=face Y, X=normal
-		FIntVector(1, 1, 1)   // All positive
-		});
+		FIntVector(1, 1, 1), // All positive
+		true
+	});
 
-	// X- face
+	// X- face (points along -X axis)
 	FaceTransforms.Add(EFaceDirection::X_NEG, {
 		FIntVector(1, 2, 0),  // Y=face X, Z=face Y, X=normal
-		FIntVector(1, -1, -1) // +Y, -Z, -X
-		});
+		FIntVector(-1, 1, -1), // -Y, +Z, -X (changed)
+		true
+	});
 
-	// Y+ face
+	// Y+ face (points along +Y axis)
 	FaceTransforms.Add(EFaceDirection::Y_POS, {
 		FIntVector(0, 2, 1),  // X=face X, Z=face Y, Y=normal
-		FIntVector(-1, 1, 1)  // -X, +Z, +Y
+		FIntVector(1, 1, 1)   // +X, +Z, +Y (changed)
 		});
 
-	// Y- face
+	// Y- face (points along -Y axis) - This one was correct per your observation
 	FaceTransforms.Add(EFaceDirection::Y_NEG, {
 		FIntVector(0, 2, 1),  // X=face X, Z=face Y, Y=normal
 		FIntVector(1, -1, -1) // +X, -Z, -Y
 		});
 
-	// Z+ face
+	// Z+ face (points along +Z axis) - This one was correct per your observation
 	FaceTransforms.Add(EFaceDirection::Z_POS, {
 		FIntVector(0, 1, 2),  // X=face X, Y=face Y, Z=normal
 		FIntVector(1, -1, 1)  // +X, -Y, +Z
 		});
 
-	// Z- face
+	// Z- face (points along -Z axis) - This one was correct per your observation
 	FaceTransforms.Add(EFaceDirection::Z_NEG, {
 		FIntVector(0, 1, 2),  // X=face X, Y=face Y, Z=normal
 		FIntVector(1, 1, -1)  // +X, +Y, -Z
