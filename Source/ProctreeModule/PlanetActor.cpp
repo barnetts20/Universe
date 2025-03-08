@@ -13,7 +13,7 @@ APlanetActor::APlanetActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
-	MeshTemplateTables = FMeshTemplateTables(FaceResolution);
+	//MeshTemplateTables = FMeshTemplateTables(FaceResolution);
 	//this->PrimaryActorTick.TickInterval = 1.0f;
 }
 //Called when the actor is destroyed
@@ -74,7 +74,7 @@ void APlanetActor::InitializePlanet()
 	//Pretty sure size is arbitrary and radius is what determines our scale. 
 	//We may even lose precision trying to generate at a large scale, normalizing to 1 size, and then scaling back up
 	//Would probably be better to use a size closer to the normalization to avoid precision loss 
-	double size = 100.0;// (this->PlanetMeshParameters.planetRadius * 2);
+	double size = 100.0;
 	this->XPosRootNode = MakeShared<QuadTreeNode>(this, NoiseGen0, xPosLock, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::XPositive), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::XPositive, FVector(.5f * (this->PlanetMeshParameters.planetRadius * 2), 0.0f, 0.0f), (this->PlanetMeshParameters.planetRadius * 2), this->PlanetMeshParameters.planetRadius);
 	this->XNegRootNode = MakeShared<QuadTreeNode>(this, NoiseGen1, xNegLock, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::XNegative), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::XNegative, FVector(-.5f * (this->PlanetMeshParameters.planetRadius * 2), 0.0f, 0.0f), (this->PlanetMeshParameters.planetRadius * 2), this->PlanetMeshParameters.planetRadius);
 	this->YPosRootNode = MakeShared<QuadTreeNode>(this, NoiseGen2, yPosLock, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::YPositive), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::YPositive, FVector(0.0f, .5f * (this->PlanetMeshParameters.planetRadius * 2), 0.0f), (this->PlanetMeshParameters.planetRadius * 2), this->PlanetMeshParameters.planetRadius);

@@ -261,7 +261,6 @@ TFuture<void> QuadTreeNode::AsyncSplit(TSharedPtr<QuadTreeNode> inNode)
 			inNode->Children.Add(n2);
 			inNode->Children.Add(n3);
 			Async(EAsyncExecution::TaskGraphMainThread, [n0, n1, n2, n3, inNode, Promise = MoveTemp(Promise)]() {
-			//inNode->ParentActor->EnqueueTask([n0, n1, n2, n3, inNode, Promise = MoveTemp(Promise)]() {
 				n0->InitializeChunk();
 				n1->InitializeChunk();
 				n2->InitializeChunk();

@@ -113,7 +113,7 @@ public:
 	TSharedPtr<QuadTreeNode> ZPosRootNode;
 	TSharedPtr<QuadTreeNode> ZNegRootNode;
 
-    FMeshTemplateTables MeshTemplateTables;
+    //FMeshTemplateTables MeshTemplateTables;
     
 protected:
 	virtual void BeginPlay() override;
