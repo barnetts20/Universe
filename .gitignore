@@ -1,0 +1,42 @@
+# Additional rules to exclude most content
+# Exclude all content by default
+Content/*
+# Generated files
+Intermediate/
+_Intermediate/
+_Binaries/
+Docs/
+.vs/
+Build/
+Binaries/
+DerivedDataCache/
+Saved/
+# Only include specific content you consider "source" files
+# Uncomment and modify these to include specific content
+
+# Include Config files
+!Config/
+!Config/**
+
+# Include only specific blueprint classes you consider "source code"
+# !Content/Blueprints/CoreGameplay/
+# !Content/Blueprints/CoreGameplay/**
+
+# Include shader source files
+!Content/**/*.usf
+!Content/**/*.hlsl
+
+# Include material functions if needed
+# !Content/Materials/Functions/
+# !Content/Materials/Functions/**
+
+# Keep the .uproject file
+!*.uproject
+
+# Always include Source directory
+!Source/
+!Source/**
+
+# Plugin source (if applicable)
+!Plugins/*/Source/
+!Plugins/*/Source/**
