@@ -110,12 +110,13 @@ public:
 	FVector GetCameraOverridePosition();
 	TFuture<URealtimeMeshComponent*> CreateRealtimeMeshComponentAsync();
 	//Root nodes for each face
-	TSharedPtr<QuadTreeNode> XPosRootNode;
-	TSharedPtr<QuadTreeNode> XNegRootNode;
-	TSharedPtr<QuadTreeNode> YPosRootNode;
-	TSharedPtr<QuadTreeNode> YNegRootNode;
-	TSharedPtr<QuadTreeNode> ZPosRootNode;
-	TSharedPtr<QuadTreeNode> ZNegRootNode;
+	TSharedPtr<QuadTreeNode> RootNodes[6];
+	//TSharedPtr<QuadTreeNode> XPosRootNode;
+	//TSharedPtr<QuadTreeNode> XNegRootNode;
+	//TSharedPtr<QuadTreeNode> YPosRootNode;
+	//TSharedPtr<QuadTreeNode> YNegRootNode;
+	//TSharedPtr<QuadTreeNode> ZPosRootNode;
+	//TSharedPtr<QuadTreeNode> ZNegRootNode;
 
     //FMeshTemplateTables MeshTemplateTables;
     

@@ -17,12 +17,12 @@ enum class EdgeOrientation : uint8 {
 
 UENUM(BlueprintType)
 enum class EFaceDirection : uint8 {
-	X_POS UMETA(DisplayName = "X+"),
-	X_NEG UMETA(DisplayName = "X-"),
-	Y_POS UMETA(DisplayName = "Y+"),
-	Y_NEG UMETA(DisplayName = "Y-"),
-	Z_POS UMETA(DisplayName = "Z+"),
-	Z_NEG UMETA(DisplayName = "Z-")
+	X_POS = 0 UMETA(DisplayName = "X+"),
+	X_NEG = 1 UMETA(DisplayName = "X-"),
+	Y_POS = 2 UMETA(DisplayName = "Y+"),
+	Y_NEG = 3 UMETA(DisplayName = "Y-"),
+	Z_POS = 4 UMETA(DisplayName = "Z+"),
+	Z_NEG = 5 UMETA(DisplayName = "Z-")
 };
 
 UENUM(BlueprintType)
@@ -313,7 +313,7 @@ struct PROCTREEMODULE_API FMeshStreamBuilders {
 	//URealtimeMeshStreamSet* StreamSet;
 
 	TRealtimeMeshStreamBuilder<FVector, FVector3f>* PositionBuilder;
-	TRealtimeMeshStreamBuilder<FRealtimeMeshTangentsHighPrecision, FRealtimeMeshTangentsNormalPrecision>* TangentBuilder;
+	//TRealtimeMeshStreamBuilder<FRealtimeMeshTangentsHighPrecision, FRealtimeMeshTangentsNormalPrecision>* TangentBuilder;
 	TRealtimeMeshStreamBuilder<FVector2f, FVector2DHalf>* TexCoordsBuilder;
 	TRealtimeMeshStreamBuilder<FColor>* ColorBuilder;
 	TRealtimeMeshStreamBuilder<TIndex3<uint32>>* TrianglesBuilder;
