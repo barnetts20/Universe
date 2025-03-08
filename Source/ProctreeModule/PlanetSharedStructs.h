@@ -313,7 +313,7 @@ struct PROCTREEMODULE_API FMeshStreamBuilders {
 	//URealtimeMeshStreamSet* StreamSet;
 
 	TRealtimeMeshStreamBuilder<FVector, FVector3f>* PositionBuilder;
-	//TRealtimeMeshStreamBuilder<FRealtimeMeshTangentsHighPrecision, FRealtimeMeshTangentsNormalPrecision>* TangentBuilder;
+	TRealtimeMeshStreamBuilder<FRealtimeMeshTangentsHighPrecision, FRealtimeMeshTangentsNormalPrecision>* TangentBuilder;
 	TRealtimeMeshStreamBuilder<FVector2f, FVector2DHalf>* TexCoordsBuilder;
 	TRealtimeMeshStreamBuilder<FColor>* ColorBuilder;
 	TRealtimeMeshStreamBuilder<TIndex3<uint32>>* TrianglesBuilder;
