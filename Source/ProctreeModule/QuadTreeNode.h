@@ -17,12 +17,13 @@ class PROCTREEMODULE_API QuadTreeNode : public TSharedFromThis<QuadTreeNode>
 {
 public:
 	QuadTreeNode(
-		APlanetActor* InParentActor, 
-		TSharedPtr<INoiseGenerator> InNoiseGen, 
-		FString InId, 
-		int InMinDepth, 
-		int InMaxDepth, 
-		EFaceDirection InFaceDirection, 
+		APlanetActor* InParentActor,
+		TSharedPtr<INoiseGenerator> InNoiseGen,
+		FString InId,
+		int InMinDepth,
+		int InMaxDepth,
+		EFaceDirection InFaceDirection,
+		FCubeTransform InFaceTransform,
 		FVector InCenter, 
 		float InSize, 
 		float InRadius);
@@ -69,6 +70,7 @@ public:
 	//Initialization Data
 	FString Id;
 	EFaceDirection FaceDirection;
+	FCubeTransform FaceTransform;
 	FVector Center;
 	//int Resolution = 14;
 	double SphereRadius;

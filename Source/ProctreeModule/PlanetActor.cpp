@@ -114,12 +114,12 @@ void APlanetActor::InitializePlanet()
 	double size = 1000.0;
 	double halfSize = size * .5;	
 
-	this->XPosRootNode = MakeShared<QuadTreeNode>(this, NoiseGen0, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::X_POS), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::X_POS, FVector(halfSize, 0.0f, 0.0f), size, this->PlanetMeshParameters.planetRadius);
-	this->XNegRootNode = MakeShared<QuadTreeNode>(this, NoiseGen1, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::X_NEG), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::X_NEG, FVector(-halfSize, 0.0f, 0.0f), size, this->PlanetMeshParameters.planetRadius);
-	this->YPosRootNode = MakeShared<QuadTreeNode>(this, NoiseGen2, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::Y_POS), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::Y_POS, FVector(0.0f, halfSize, 0.0f), size, this->PlanetMeshParameters.planetRadius);
-	this->YNegRootNode = MakeShared<QuadTreeNode>(this, NoiseGen3, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::Y_NEG), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::Y_NEG, FVector(0.0f, -halfSize, 0.0f), size, this->PlanetMeshParameters.planetRadius);
-	this->ZPosRootNode = MakeShared<QuadTreeNode>(this, NoiseGen4, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::Z_POS), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::Z_POS, FVector(0.0f, 0.0f, halfSize), size, this->PlanetMeshParameters.planetRadius);
-	this->ZNegRootNode = MakeShared<QuadTreeNode>(this, NoiseGen5, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::Z_NEG), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::Z_NEG, FVector(0.0f, 0.0f, -halfSize), size, this->PlanetMeshParameters.planetRadius);
+	this->XPosRootNode = MakeShared<QuadTreeNode>(this, NoiseGen0, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::X_POS), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::X_POS, *FaceTransforms.Find(EFaceDirection::X_POS), FVector(halfSize, 0.0f, 0.0f), size, this->PlanetMeshParameters.planetRadius);
+	this->XNegRootNode = MakeShared<QuadTreeNode>(this, NoiseGen1, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::X_NEG), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::X_NEG, *FaceTransforms.Find(EFaceDirection::X_NEG), FVector(-halfSize, 0.0f, 0.0f), size, this->PlanetMeshParameters.planetRadius);
+	this->YPosRootNode = MakeShared<QuadTreeNode>(this, NoiseGen2, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::Y_POS), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::Y_POS, *FaceTransforms.Find(EFaceDirection::Y_POS), FVector(0.0f, halfSize, 0.0f), size, this->PlanetMeshParameters.planetRadius);
+	this->YNegRootNode = MakeShared<QuadTreeNode>(this, NoiseGen3, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::Y_NEG), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::Y_NEG, *FaceTransforms.Find(EFaceDirection::Y_NEG), FVector(0.0f, -halfSize, 0.0f), size, this->PlanetMeshParameters.planetRadius);
+	this->ZPosRootNode = MakeShared<QuadTreeNode>(this, NoiseGen4, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::Z_POS), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::Z_POS, *FaceTransforms.Find(EFaceDirection::Z_POS), FVector(0.0f, 0.0f, halfSize), size, this->PlanetMeshParameters.planetRadius);
+	this->ZNegRootNode = MakeShared<QuadTreeNode>(this, NoiseGen5, FString::Printf(TEXT("%d"), (uint8)EFaceDirection::Z_NEG), this->MinNodeDepth, this->MaxNodeDepth, EFaceDirection::Z_NEG, *FaceTransforms.Find(EFaceDirection::Z_NEG), FVector(0.0f, 0.0f, -halfSize), size, this->PlanetMeshParameters.planetRadius);
 
 	this->XPosRootNode->GenerateMeshData();
 	this->XNegRootNode->GenerateMeshData();

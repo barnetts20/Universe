@@ -11,7 +11,7 @@
 #include <Mesh/RealtimeMeshAlgo.h>
 
 //This structure is for internal use only, anytime it's data is needed it should be wrapped in a FMeshUpdateData struct
-QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FString InId, int InMinDepth, int InMaxDepth, EFaceDirection InFaceDirection, FVector InCenter, float InSize, float InRadius)
+QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FString InId, int InMinDepth, int InMaxDepth, EFaceDirection InFaceDirection, FCubeTransform InFaceTransform, FVector InCenter, float InSize, float InRadius)
 {
 	ParentActor = InParentActor;
 	NoiseGen = InNoiseGen;
@@ -19,6 +19,7 @@ QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerat
 	MinDepth = InMinDepth;
 	MaxDepth = InMaxDepth;
 	FaceDirection = InFaceDirection;
+	FaceTransform = InFaceTransform;
 	Center = InCenter;
 	SphereRadius = InRadius;
 	Size = InSize;
@@ -240,10 +241,10 @@ TFuture<void> QuadTreeNode::AsyncSplit(TSharedPtr<QuadTreeNode> inNode)
 					break;
 			}
 
-			TSharedPtr<QuadTreeNode> n0 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId0, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n0Center, inNode->HalfSize, inNode->SphereRadius);
-			TSharedPtr<QuadTreeNode> n1 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId1, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n1Center, inNode->HalfSize, inNode->SphereRadius);
-			TSharedPtr<QuadTreeNode> n2 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId2, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n2Center, inNode->HalfSize, inNode->SphereRadius);
-			TSharedPtr<QuadTreeNode> n3 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId3, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, n3Center, inNode->HalfSize, inNode->SphereRadius);
+			TSharedPtr<QuadTreeNode> n0 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId0, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, inNode->FaceTransform, n0Center, inNode->HalfSize, inNode->SphereRadius);
+			TSharedPtr<QuadTreeNode> n1 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId1, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, inNode->FaceTransform, n1Center, inNode->HalfSize, inNode->SphereRadius);
+			TSharedPtr<QuadTreeNode> n2 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId2, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, inNode->FaceTransform, n2Center, inNode->HalfSize, inNode->SphereRadius);
+			TSharedPtr<QuadTreeNode> n3 = MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId3, inNode->MinDepth, inNode->MaxDepth, inNode->FaceDirection, inNode->FaceTransform, n3Center, inNode->HalfSize, inNode->SphereRadius);
 
 			n0->Parent = inNode;
 			n1->Parent = inNode;
