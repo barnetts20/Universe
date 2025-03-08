@@ -22,7 +22,6 @@ public:
 		FString InId,
 		int InMinDepth,
 		int InMaxDepth,
-		EFaceDirection InFaceDirection,
 		FCubeTransform InFaceTransform,
 		FVector InCenter, 
 		float InSize, 
