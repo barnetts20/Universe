@@ -19,7 +19,7 @@ public:
 	QuadTreeNode(
 		APlanetActor* InParentActor,
 		TSharedPtr<INoiseGenerator> InNoiseGen,
-		FString InId,
+		FQuadIndex InIndex,
 		int InMinDepth,
 		int InMaxDepth,
 		FCubeTransform InFaceTransform,
@@ -60,15 +60,17 @@ public:
 	void DestroyChunk();
 
 	void Split(TSharedPtr<QuadTreeNode> inNode);
-	TFuture<void> AsyncSplit(TSharedPtr<QuadTreeNode> inNode);
+	//TFuture<void> AsyncSplit(TSharedPtr<QuadTreeNode> inNode);
 	void Merge(TSharedPtr<QuadTreeNode> inNode);
-	TFuture<void> AsyncMerge(TSharedPtr<QuadTreeNode> inNode);
+	//TFuture<void> AsyncMerge(TSharedPtr<QuadTreeNode> inNode);
 	//External References	
 	APlanetActor* ParentActor;
 	TSharedPtr<INoiseGenerator> NoiseGen;
 
 	//Initialization Data
-	FString Id;
+	//FString Id;
+	FQuadIndex Index;
+	TArray<uint8> Path;
 	EFaceDirection FaceDirection;
 	FCubeTransform FaceTransform;
 	FVector Center;

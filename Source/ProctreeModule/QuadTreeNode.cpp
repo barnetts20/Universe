@@ -11,11 +11,10 @@
 #include <Mesh/RealtimeMeshAlgo.h>
 
 //This structure is for internal use only, anytime it's data is needed it should be wrapped in a FMeshUpdateData struct
-QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FString InId, int InMinDepth, int InMaxDepth, FCubeTransform InFaceTransform, FVector InCenter, float InSize, float InRadius)
+QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FQuadIndex InIndex, int InMinDepth, int InMaxDepth, FCubeTransform InFaceTransform, FVector InCenter, float InSize, float InRadius) : Index(InIndex)
 {
 	ParentActor = InParentActor;
 	NoiseGen = InNoiseGen;
-	Id = InId;
 	MinDepth = InMinDepth;
 	MaxDepth = InMaxDepth;
 	FaceTransform = InFaceTransform;
@@ -123,7 +122,7 @@ void QuadTreeNode::TrySetLod() {
 		}
 		else if ((parent.IsValid() && parent.Pin()->GetDepth() >= this->MinDepth) && k * parentSize < s(d2, fov)) {
 			this->CanMerge = true;
-			if (this->Id.Left(1) == "3")
+			if (this->Index.GetQuadrant() == 3)
 			parent.Pin()->TryMerge();
 		}
 		else {
@@ -160,24 +159,12 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 	{
 		return;
 	}
-	FString opId = inNode->Id;
-	int opLvl = inNode->GetDepth();
 
-	FString newId0 = "0" + opId;
-	FString newId1 = "1" + opId;
-	FString newId2 = "2" + opId;
-	FString newId3 = "3" + opId;
-
-	// Define child offsets in face-local coordinates
-	struct ChildOffset {
-		double X, Y;
-	};
-
-	ChildOffset childOffsets[4] = {
-		{-inNode->QuarterSize, -inNode->QuarterSize}, // Bottom-left
-		{inNode->QuarterSize, -inNode->QuarterSize},  // Bottom-right
-		{-inNode->QuarterSize, inNode->QuarterSize},  // Top-left
-		{inNode->QuarterSize, inNode->QuarterSize}    // Top-right
+	FVector2d childOffsets[4] = {
+		FVector2d(-inNode->QuarterSize, -inNode->QuarterSize), // Bottom-left
+		FVector2d(-inNode->QuarterSize, inNode->QuarterSize),  // Top-left
+		FVector2d(inNode->QuarterSize, -inNode->QuarterSize),  // Bottom-right
+		FVector2d(inNode->QuarterSize, inNode->QuarterSize)    // Top-right
 	};
 
 	// Calculate child centers using face transforms
@@ -210,10 +197,10 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 		childCenters[i].Z += offsets[2];
 	}
 
-	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId0, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[0], inNode->HalfSize, inNode->SphereRadius));
-	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId1, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[1], inNode->HalfSize, inNode->SphereRadius));
-	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId2, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[2], inNode->HalfSize, inNode->SphereRadius));
-	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, newId3, inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[3], inNode->HalfSize, inNode->SphereRadius));
+	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(0), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[0], inNode->HalfSize, inNode->SphereRadius));
+	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(1), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[1], inNode->HalfSize, inNode->SphereRadius));
+	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(2), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[2], inNode->HalfSize, inNode->SphereRadius));
+	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(3), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[3], inNode->HalfSize, inNode->SphereRadius));
 
 	for (auto child : Children) {
 		child->Parent = inNode;
@@ -281,15 +268,12 @@ void QuadTreeNode::RecurseRemoveChildren(TSharedPtr<QuadTreeNode> InNode)
 
 bool QuadTreeNode::IsLeaf() const
 {
-	if (this->Children.Num() == 0) {
-		return true;
-	}
-	return false;
+	return this->Children.Num() == 0;
 }
 
 int QuadTreeNode::GetDepth() const
 {
-	return Id.Len();
+	return Index.GetDepth();
 }
 
 void QuadTreeNode::SetChunkVisibility(bool inVisibility) {

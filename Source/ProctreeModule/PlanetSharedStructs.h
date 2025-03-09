@@ -356,10 +356,10 @@ enum PROCTREEMODULE_API ENeighborState
 };
 
 enum PROCTREEMODULE_API EChildPosition {
-	BOTTOM_LEFT = 0,
-	TOP_LEFT = 1,
-	BOTTOM_RIGHT = 2,
-	TOP_RIGHT = 3
+	BOTTOM_LEFT = 0, //0b00,
+	TOP_LEFT = 1, //0b01,
+	BOTTOM_RIGHT = 2, //0b10,
+	TOP_RIGHT = 3, //0b11
 };
 
 struct PROCTREEMODULE_API FCubeTransform {
@@ -367,4 +367,81 @@ struct PROCTREEMODULE_API FCubeTransform {
 	FIntVector3 AxisDir;
 
 	bool bFlipWinding = false;
+};
+
+struct PROCTREEMODULE_API FQuadIndex {
+	uint64 EncodedPath;
+	uint8 FaceId;
+
+	explicit FQuadIndex(uint8 InFaceId)
+		: EncodedPath(0b11), FaceId(InFaceId) {}  // Starts with the sentinel bits
+
+	FQuadIndex(uint64 InPath, uint8 InFaceId)
+		: EncodedPath(InPath), FaceId(InFaceId) {}
+
+	// Get the depth from the encoded path
+	// Count the number of quadrant pairs after the sentinel bits
+	uint8 GetDepth() const {
+		uint64 path = EncodedPath >> 2; // Remove sentinel bits for counting
+		uint8 depth = 0;
+		while (path != 0) {
+			depth++;
+			path >>= 2; // Move to the next quadrant
+		}
+		return depth;
+	}
+
+	bool IsRoot() const {
+		return GetDepth() == 0;
+	}
+
+	// Get the quadrant index of this node (the last quadrant in the path)
+	uint8 GetQuadrant() const {
+		if (IsRoot()) return 0; // Root has no quadrant
+		return GetQuadrantAtDepth(GetDepth() - 1);
+	}
+
+	uint8 GetQuadrantAtDepth(uint8 Level) const {
+		if (Level >= GetDepth()) return 0;
+		return (EncodedPath >> (2 + 2 * Level)) & 0x3; // Skip sentinel bits and shift to the correct depth level
+	}
+
+	// Get a child ID with the specified child index
+	FQuadIndex GetChildIndex(uint8 InChildIndex) const {
+		if (GetDepth() >= 31) return *this; // Max depth reached (31 levels + 2 sentinel bits)
+		uint64 newPath = EncodedPath << 2;   // Shift existing path left to make room for new child index
+		newPath |= (InChildIndex & 0x3);     // Add new child index at the least significant bits
+		return FQuadIndex(newPath, FaceId);  // Return new FQuadIndex with updated path
+	}
+
+	// Get parent ID (decreases depth)
+	FQuadIndex GetParentIndex() const {
+		if (IsRoot()) return *this; // Already at root
+		uint64 newPath = EncodedPath >> 2;  // Right shift to remove the last quadrant
+		return FQuadIndex(newPath, FaceId); // Return new FQuadIndex with updated path
+	}
+
+	// Equality operator
+	bool operator==(const FQuadIndex& Other) const {
+		return FaceId == Other.FaceId && EncodedPath == Other.EncodedPath;
+	}
+
+	// Hash function for use in TMap
+	friend uint32 GetTypeHash(const FQuadIndex& ID) {
+		return HashCombine(GetTypeHash(ID.FaceId),
+			GetTypeHash(uint32(ID.EncodedPath ^ (ID.EncodedPath >> 32))));
+	}
+
+	// Check if ID is valid
+	bool IsValid() const {
+		return EncodedPath != 0;
+	}
+
+	FString ToString() const {
+		FString Result = FString::Printf(TEXT("Face:%d Depth:%d Path:"), FaceId, GetDepth());
+		for (int i = 0; i < GetDepth(); i++) {
+			Result += FString::Printf(TEXT("%d"), GetQuadrantAtDepth(i));
+		}
+		return Result;
+	}
 };
