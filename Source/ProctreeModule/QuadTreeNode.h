@@ -109,7 +109,6 @@ public:
 	//Family
 	TWeakPtr<QuadTreeNode> Parent;
 	TArray<TSharedPtr<QuadTreeNode>> Children;
-	ENeighborState CurrentNeighborState = ENeighborState::NONE;
 	//Payload
 	FRealtimeMeshStreamSet LandMeshStreamInner;
 	FRealtimeMeshStreamSet SeaMeshStreamInner;

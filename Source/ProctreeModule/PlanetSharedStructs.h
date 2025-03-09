@@ -8,24 +8,6 @@
 class QuadTreeNode;
 
 UENUM(BlueprintType)
-enum class EdgeOrientation : uint8 {
-	LEFT = 0,
-	RIGHT = 1,
-	UP = 2,
-	DOWN = 3
-};
-
-UENUM(BlueprintType)
-enum class EFaceDirection : uint8 {
-	X_POS = 0 UMETA(DisplayName = "X+"),
-	X_NEG = 1 UMETA(DisplayName = "X-"),
-	Y_POS = 2 UMETA(DisplayName = "Y+"),
-	Y_NEG = 3 UMETA(DisplayName = "Y-"),
-	Z_POS = 4 UMETA(DisplayName = "Z+"),
-	Z_NEG = 5 UMETA(DisplayName = "Z-")
-};
-
-UENUM(BlueprintType)
 enum  class EMeshUpdateType : uint8 {
 	ADD UMETA(DisplayName = "Add"),
 	REMOVE UMETA(DisplayName = "Remove"),
@@ -334,10 +316,6 @@ struct PROCTREEMODULE_API FMeshUpdateData {
 	int32 Priority;
 	int32 LodLevel;
 	EMeshUpdateType UpdateType;
-	//TSharedPtr<FRealtimeMeshSimpleMeshData> MeshData;
-	//TRealtimeMeshBuilderLocal:: MeshBuilder;
-
-
 };
 
 struct PROCTREEMODULE_API FMeshUpdateDataBatch {
@@ -347,12 +325,22 @@ struct PROCTREEMODULE_API FMeshUpdateDataBatch {
 	TArray<TSharedPtr<FMeshUpdateData>> MeshRemoves;
 };
 
-enum PROCTREEMODULE_API ENeighborState
-{
-	NONE = 0,
-	N0 = 1,
-	N1 = 2,
-	ALL = 3
+UENUM(BlueprintType)
+enum class EdgeOrientation : uint8 {
+	LEFT = 0,
+	RIGHT = 1,
+	UP = 2,
+	DOWN = 3
+};
+
+UENUM(BlueprintType)
+enum class EFaceDirection : uint8 {
+	X_POS = 0 UMETA(DisplayName = "X+"),
+	X_NEG = 1 UMETA(DisplayName = "X-"),
+	Y_POS = 2 UMETA(DisplayName = "Y+"),
+	Y_NEG = 3 UMETA(DisplayName = "Y-"),
+	Z_POS = 4 UMETA(DisplayName = "Z+"),
+	Z_NEG = 5 UMETA(DisplayName = "Z-")
 };
 
 enum PROCTREEMODULE_API EChildPosition {
@@ -369,9 +357,18 @@ struct PROCTREEMODULE_API FCubeTransform {
 	bool bFlipWinding = false;
 };
 
+struct PROCTREEMODULE_API FaceTransition {
+	uint8 TargetFace;
+	uint8 RotationQuadrants; // 0=0°, 1=90°, 2=180°, 3=270°
+	bool FlipX;
+	bool FlipY;
+};
+
 struct PROCTREEMODULE_API FQuadIndex {
 	uint64 EncodedPath;
 	uint8 FaceId;
+
+	static const FaceTransition FaceTransitions[6][4];
 
 	explicit FQuadIndex(uint8 InFaceId)
 		: EncodedPath(0b11), FaceId(InFaceId) {}  // Starts with the sentinel bits
@@ -419,6 +416,195 @@ struct PROCTREEMODULE_API FQuadIndex {
 		if (IsRoot()) return *this; // Already at root
 		uint64 newPath = EncodedPath >> 2;  // Right shift to remove the last quadrant
 		return FQuadIndex(newPath, FaceId); // Return new FQuadIndex with updated path
+	}
+
+	// Get the neighbor index in a specific direction
+	FQuadIndex GetNeighborIndex(EdgeOrientation Direction) const {
+		// If we're at the root, we always cross to another face
+		if (IsRoot()) {
+			return GetCrossFaceNeighbor(Direction);
+		}
+
+		uint8 depth = GetDepth();
+		uint8 lastQuad = GetQuadrant();
+
+		// Determine if we cross a boundary
+		bool crossesBoundary = false;
+		switch (Direction) {
+		case EdgeOrientation::LEFT:
+			crossesBoundary = (lastQuad == BOTTOM_LEFT || lastQuad == TOP_LEFT);
+			break;
+		case EdgeOrientation::RIGHT:
+			crossesBoundary = (lastQuad == BOTTOM_RIGHT || lastQuad == TOP_RIGHT);
+			break;
+		case EdgeOrientation::UP:
+			crossesBoundary = (lastQuad == TOP_LEFT || lastQuad == TOP_RIGHT);
+			break;
+		case EdgeOrientation::DOWN:
+			crossesBoundary = (lastQuad == BOTTOM_LEFT || lastQuad == BOTTOM_RIGHT);
+			break;
+		}
+
+		if (!crossesBoundary) {
+			// Simple case: neighbor is within same parent, just flip the appropriate bit
+			uint64 newPath = EncodedPath;
+			uint8 newQuad = lastQuad;
+
+			switch (Direction) {
+			case EdgeOrientation::LEFT:
+				newQuad = lastQuad & 0x2; // Clear rightmost bit (convert to a left quadrant)
+				break;
+			case EdgeOrientation::RIGHT:
+				newQuad = lastQuad | 0x2; // Set rightmost bit (convert to a right quadrant)
+				break;
+			case EdgeOrientation::UP:
+				newQuad = lastQuad | 0x1; // Set second bit (convert to a top quadrant)
+				break;
+			case EdgeOrientation::DOWN:
+				newQuad = lastQuad & 0x2; // Clear second bit (convert to a bottom quadrant)
+				break;
+			}
+
+			// Replace the last quadrant in the path
+			newPath &= ~(uint64(0x3)); // Clear last quadrant
+			newPath |= newQuad;        // Add new quadrant
+
+			return FQuadIndex(newPath, FaceId);
+		}
+		else {
+			// We need to go up to a common ancestor and then down
+
+			// Find the common ancestor level where the edge exists
+			uint8 ancestorLevel = depth - 1;
+			uint64 path = EncodedPath >> 2; // Skip last quadrant
+
+			// Keep moving up until we find a level where we don't cross the boundary
+			while (ancestorLevel > 0) {
+				uint8 quadrant = path & 0x3;
+				bool crossesAtThisLevel = false;
+
+				switch (Direction) {
+				case EdgeOrientation::LEFT:
+					crossesAtThisLevel = (quadrant == BOTTOM_LEFT || quadrant == TOP_LEFT);
+					break;
+				case EdgeOrientation::RIGHT:
+					crossesAtThisLevel = (quadrant == BOTTOM_RIGHT || quadrant == TOP_RIGHT);
+					break;
+				case EdgeOrientation::UP:
+					crossesAtThisLevel = (quadrant == TOP_LEFT || quadrant == TOP_RIGHT);
+					break;
+				case EdgeOrientation::DOWN:
+					crossesAtThisLevel = (quadrant == BOTTOM_LEFT || quadrant == BOTTOM_RIGHT);
+					break;
+				}
+
+				if (!crossesAtThisLevel) {
+					break; // Found the ancestor that doesn't cross
+				}
+
+				ancestorLevel--;
+				path >>= 2;
+			}
+
+			// If we couldn't find a common ancestor, we need to cross faces
+			if (ancestorLevel == 0 && ((path & 0x3) == 0)) {
+				return GetCrossFaceNeighbor(Direction);
+			}
+
+			// Compute the path to the neighbor through the common ancestor
+			// First, get the path to the common ancestor
+			uint64 ancestorPath = EncodedPath >> (2 * (depth - ancestorLevel));
+			ancestorPath <<= (2 * (depth - ancestorLevel));
+
+			// Get the quadrant at the common ancestor level
+			uint8 ancestorQuad = (EncodedPath >> (2 * (depth - ancestorLevel))) & 0x3;
+
+			// Flip the bit for the appropriate direction at the ancestor level
+			uint8 neighborAncestorQuad = ancestorQuad;
+			switch (Direction) {
+			case EdgeOrientation::LEFT:
+				neighborAncestorQuad = ancestorQuad & 0x2; // Clear rightmost bit
+				break;
+			case EdgeOrientation::RIGHT:
+				neighborAncestorQuad = ancestorQuad | 0x2; // Set rightmost bit
+				break;
+			case EdgeOrientation::UP:
+				neighborAncestorQuad = ancestorQuad | 0x1; // Set second bit
+				break;
+			case EdgeOrientation::DOWN:
+				neighborAncestorQuad = ancestorQuad & 0x2; // Clear second bit
+				break;
+			}
+
+			// Replace the quadrant at the ancestor level
+			uint64 neighborPath = ancestorPath;
+			neighborPath &= ~(uint64(0x3) << (2 * (depth - ancestorLevel)));
+			neighborPath |= (uint64(neighborAncestorQuad) << (2 * (depth - ancestorLevel)));
+
+			// Now we need to add the mirrored quadrants for all levels below the ancestor
+			for (uint8 level = ancestorLevel + 1; level <= depth; level++) {
+				uint8 quadrant = (EncodedPath >> (2 * (depth - level))) & 0x3;
+				uint8 mirroredQuadrant = quadrant;
+
+				// Mirror the quadrant based on which edge we're crossing
+				switch (Direction) {
+				case EdgeOrientation::LEFT:
+				case EdgeOrientation::RIGHT:
+					mirroredQuadrant = quadrant ^ 0x2; // Flip x-axis (horizontal)
+					break;
+				case EdgeOrientation::UP:
+				case EdgeOrientation::DOWN:
+					mirroredQuadrant = quadrant ^ 0x1; // Flip y-axis (vertical)
+					break;
+				}
+
+				neighborPath |= (uint64(mirroredQuadrant) << (2 * (depth - level)));
+			}
+
+			return FQuadIndex(neighborPath, FaceId);
+		}
+	}
+
+	// Handle neighbors that cross to a different face
+	FQuadIndex GetCrossFaceNeighbor(EdgeOrientation Direction) const {
+
+		// Get the transition data for this face and direction
+		const FaceTransition& transition = FaceTransitions[FaceId][static_cast<uint8>(Direction)];
+
+		// Create the base index for the target face
+		FQuadIndex neighborIndex(transition.TargetFace);
+
+		// If we're at the root, just return the adjacent face root
+		if (IsRoot()) {
+			return neighborIndex;
+		}
+
+		// Transform the path to the coordinate system of the target face
+		for (uint8 level = 0; level < GetDepth(); level++) {
+			uint8 quadrant = GetQuadrantAtDepth(level);
+			uint8 transformedQuadrant = quadrant;
+
+			// Apply flips
+			if (transition.FlipX) {
+				transformedQuadrant ^= 0x2; // Flip x-axis (BOTTOM_LEFT<->BOTTOM_RIGHT, TOP_LEFT<->TOP_RIGHT)
+			}
+			if (transition.FlipY) {
+				transformedQuadrant ^= 0x1; // Flip y-axis (BOTTOM_LEFT<->TOP_LEFT, BOTTOM_RIGHT<->TOP_RIGHT)
+			}
+
+			// Apply rotation
+			for (uint8 i = 0; i < transition.RotationQuadrants; i++) {
+				// Rotate 90° clockwise: (x,y) -> (y,-x)
+				// In quadrant encoding, this is a specific bit manipulation
+				bool topBit = (transformedQuadrant & 0x1) != 0;
+				bool rightBit = (transformedQuadrant & 0x2) != 0;
+				transformedQuadrant = (topBit ? 0x2 : 0x0) | (rightBit ? 0x0 : 0x1);
+			}
+
+			neighborIndex = neighborIndex.GetChildIndex(transformedQuadrant);
+		}
+
+		return neighborIndex;
 	}
 
 	// Equality operator
