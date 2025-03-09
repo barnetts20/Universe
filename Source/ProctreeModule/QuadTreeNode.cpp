@@ -27,9 +27,9 @@ QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerat
 	lodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
 	
 	NeighborLodChangeMap.Add(EdgeOrientation::LEFT, false);
-	NeighborLodChangeMap.Add(EdgeOrientation::TOP, false);
+	NeighborLodChangeMap.Add(EdgeOrientation::UP, false);
 	NeighborLodChangeMap.Add(EdgeOrientation::RIGHT, false);
-	NeighborLodChangeMap.Add(EdgeOrientation::BOTTOM, false);
+	NeighborLodChangeMap.Add(EdgeOrientation::DOWN, false);
 
 	this->SeaLevel = InRadius;
 	this->RtMesh = NewObject<URealtimeMeshSimple>(this->ParentActor);
@@ -423,11 +423,11 @@ int QuadTreeNode::GenerateVertex(double x, double y, double step, FMeshStreamBui
 	}
 	//"TOP" Edge corners
 	if ((x == 0 && y == 0) || (x == Resolution - 1 && y == 0)) {
-		NeighborEdgeCorners.FindOrAdd(EdgeOrientation::TOP).Add(normalizedPoint * SphereRadius);
+		NeighborEdgeCorners.FindOrAdd(EdgeOrientation::UP).Add(normalizedPoint * SphereRadius);
 	}
 	//"BOTTOM" Edge corners
 	if ((x == 0 && y == Resolution - 1) || (x == Resolution - 1 && y == Resolution - 1)) {
-		NeighborEdgeCorners.FindOrAdd(EdgeOrientation::BOTTOM).Add(normalizedPoint * SphereRadius);
+		NeighborEdgeCorners.FindOrAdd(EdgeOrientation::DOWN).Add(normalizedPoint * SphereRadius);
 	}
 	return returnIndex;
 }
@@ -466,9 +466,9 @@ void QuadTreeNode::GenerateMeshData()
 
 	TMap<EdgeOrientation, TArray<int>> EdgeVertexIndexMap;
 	EdgeVertexIndexMap.Add(EdgeOrientation::LEFT);
-	EdgeVertexIndexMap.Add(EdgeOrientation::TOP);
+	EdgeVertexIndexMap.Add(EdgeOrientation::UP);
 	EdgeVertexIndexMap.Add(EdgeOrientation::RIGHT);
-	EdgeVertexIndexMap.Add(EdgeOrientation::BOTTOM);
+	EdgeVertexIndexMap.Add(EdgeOrientation::DOWN);
 
 	//These values track various max/min values found during iteration
 	double maxDist = 0.0;
@@ -525,9 +525,9 @@ void QuadTreeNode::GenerateMeshData()
 
 			// Check which edges need LOD transitions
 			bool leftLodChange = (x == 0 && *NeighborLodChangeMap.Find(EdgeOrientation::LEFT));
-			bool topLodChange = (y == 0 && *NeighborLodChangeMap.Find(EdgeOrientation::TOP));
+			bool topLodChange = (y == 0 && *NeighborLodChangeMap.Find(EdgeOrientation::UP));
 			bool rightLodChange = (x == tResolution - 1 && *NeighborLodChangeMap.Find(EdgeOrientation::RIGHT));
-			bool bottomLodChange = (y == tResolution - 1 && *NeighborLodChangeMap.Find(EdgeOrientation::BOTTOM));
+			bool bottomLodChange = (y == tResolution - 1 && *NeighborLodChangeMap.Find(EdgeOrientation::DOWN));
 
 			TArray<FIndex3UI> TrianglesToAdd;
 

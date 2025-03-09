@@ -9,10 +9,10 @@ class QuadTreeNode;
 
 UENUM(BlueprintType)
 enum class EdgeOrientation : uint8 {
-	LEFT,
-	TOP,
-	RIGHT,
-	BOTTOM
+	LEFT = 0,
+	RIGHT = 1,
+	UP = 2,
+	DOWN = 3
 };
 
 UENUM(BlueprintType)
