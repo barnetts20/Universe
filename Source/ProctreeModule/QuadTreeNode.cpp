@@ -207,8 +207,8 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 {
 	if (!inNode.IsValid() || !inNode->IsLeaf()) return;
 
+	//Children laid out according to morton XY ordered indexing
 	FVector2d childOffsets[4] = {
-		//Children laid out according to morton XY ordered indexing
 		FVector2d(-inNode->QuarterSize, -inNode->QuarterSize), // Bottom-left  0b00  0
 		FVector2d(-inNode->QuarterSize,  inNode->QuarterSize), // Top-left     0b01  1
 		FVector2d(inNode->QuarterSize,  -inNode->QuarterSize), // Bottom-right 0b10  2
@@ -226,23 +226,21 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 	Async(EAsyncExecution::TaskGraphMainThread, [this, inNode]() {
 		for (TSharedPtr<QuadTreeNode> child : Children) {
 			child->InitializeChunk(); // Initialize component on main thread then dispatch mesh update
-			Async(EAsyncExecution::LargeThreadPool, [this, child, inNode]() {
-				child->GenerateMeshData(); // Dispatch chunk visibility back to main thread so it happens on the next frame
-				Async(EAsyncExecution::TaskGraphMainThread, [this, inNode]() {
-					inNode->SetChunkVisibility(false);
-				});
-			});
 		}
+		Async(EAsyncExecution::LargeThreadPool, [this, inNode]() {
+			ParallelFor(4, [&](int32 i) {
+				Children[i]->GenerateMeshData();
+			});
+			Async(EAsyncExecution::TaskGraphMainThread, [this, inNode]() {
+				inNode->SetChunkVisibility(false);
+			});
+		});
 	});
 }
 
 void QuadTreeNode::Merge(TSharedPtr<QuadTreeNode> inNode)
 {
-	if (!inNode.IsValid() || inNode->IsLeaf()) {
-		return;
-	}
-
-	//inNode->UpdateNeighborState();
+	if (!inNode.IsValid() || inNode->IsLeaf()) return;
 
 	Async(EAsyncExecution::TaskGraphMainThread, [inNode]() mutable {
 		if (!inNode.IsValid() || inNode->IsLeaf()) {
