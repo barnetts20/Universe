@@ -59,6 +59,7 @@ void APlanetActor::InitializeFaceTransforms() {
 //Called when the actor is destroyed
 void APlanetActor::BeginDestroy()
 {	
+	IsDestroyed = true;
 	Super::BeginDestroy();
 
 	for (int i = 0; i < 6; i++) {
