@@ -32,11 +32,12 @@ public:
 	bool IsLeaf() const;
 	int GetDepth() const; //This also represents the current LOD level
 	
-	FRealtimeMeshLODKey lodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
-	FRealtimeMeshSectionGroupKey landGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(lodKey, FName("land_mesh_internal"));
-	FRealtimeMeshSectionGroupKey seaGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(lodKey, FName("sea_mesh_internal"));
-	FRealtimeMeshSectionKey landSectionKeyInner = FRealtimeMeshSectionKey::CreateForPolyGroup(landGroupKeyInner, 0);
-	FRealtimeMeshSectionKey seaSectionKeyInner = FRealtimeMeshSectionKey::CreateForPolyGroup(seaGroupKeyInner, 1);
+
+	FRealtimeMeshLODKey LodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
+	FRealtimeMeshSectionGroupKey LandGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, FName("land_mesh_internal"));
+	FRealtimeMeshSectionGroupKey SeaGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, FName("sea_mesh_internal"));
+	FRealtimeMeshSectionKey LandSectionKeyInner = FRealtimeMeshSectionKey::CreateForPolyGroup(LandGroupKeyInner, 0);
+	FRealtimeMeshSectionKey SeaSectionKeyInner = FRealtimeMeshSectionKey::CreateForPolyGroup(SeaGroupKeyInner, 1);
 
 	//Structure modification functions
 

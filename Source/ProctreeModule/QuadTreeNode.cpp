@@ -24,7 +24,7 @@ QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerat
 	HalfSize = Size * .5;
 	QuarterSize = HalfSize * .5;
 
-	lodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
+	LodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
 	
 	NeighborLodChangeMap.Add(EdgeOrientation::LEFT, false);
 	NeighborLodChangeMap.Add(EdgeOrientation::UP, false);
@@ -143,39 +143,39 @@ void QuadTreeNode::UpdateLod()
 
 void QuadTreeNode::UpdateNeighborState() {
 	// If this node has children, recurse into them
-	if (!IsLeaf())
-	{
-		for (auto& Child : Children)
-		{
-			if (Child)
-				Child->UpdateNeighborState();
-		}
-		return;
-	}
-	bool neighborChanged = false;
-	for (uint8 i = 0; i < 4; i++) {
-		auto edge = EdgeOrientation(i);
-		auto nIndex = Index.GetNeighborIndex(edge);
-		TSharedPtr<QuadTreeNode> EdgeNeighbor = ParentActor->GetNodeByIndex(nIndex);
-		if (EdgeNeighbor) {
-			bool nLeaf = !EdgeNeighbor->IsLeaf();
-			if (*NeighborLodChangeMap.Find(edge) != nLeaf) {
-				neighborChanged = true;
-				NeighborLodChangeMap.Add(edge, nLeaf);
-			}
-		}
-		else {
-			if (*NeighborLodChangeMap.Find(edge) != false) {
-				neighborChanged = true;
-				NeighborLodChangeMap.Add(edge, false);
-			}
-		}
-	}
-	if (neighborChanged) {
-		IsDirty = true;
-		//IsInitialized = false;
-		//GenerateMeshData();
-	}
+	//if (!IsLeaf())
+	//{
+	//	for (auto& Child : Children)
+	//	{
+	//		if (Child)
+	//			Child->UpdateNeighborState();
+	//	}
+	//	return;
+	//}
+	//bool neighborChanged = false;
+	//for (uint8 i = 0; i < 4; i++) {
+	//	auto edge = EdgeOrientation(i);
+	//	auto nIndex = Index.GetNeighborIndex(edge);
+	//	TSharedPtr<QuadTreeNode> EdgeNeighbor = ParentActor->GetNodeByIndex(nIndex);
+	//	if (EdgeNeighbor) {
+	//		bool nLeaf = !EdgeNeighbor->IsLeaf();
+	//		if (*NeighborLodChangeMap.Find(edge) != nLeaf) {
+	//			neighborChanged = true;
+	//			NeighborLodChangeMap.Add(edge, nLeaf);
+	//		}
+	//	}
+	//	else {
+	//		if (*NeighborLodChangeMap.Find(edge) != false) {
+	//			neighborChanged = true;
+	//			NeighborLodChangeMap.Add(edge, false);
+	//		}
+	//	}
+	//}
+	//if (neighborChanged) {
+	//	IsDirty = true;
+	//	//IsInitialized = false;
+	//	//GenerateMeshData();
+	//}
 }
 void QuadTreeNode::UpdateMesh() {
 	// If this node has children, recurse into them
@@ -205,64 +205,34 @@ void QuadTreeNode::CollectLeaves(TArray<TSharedPtr<QuadTreeNode>>& LeafNodes) {
 
 void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 {
-	if (!inNode.IsValid() || !inNode->IsLeaf())
-	{
-		return;
-	}
+	if (!inNode.IsValid() || !inNode->IsLeaf()) return;
 
 	FVector2d childOffsets[4] = {
-		FVector2d(-inNode->QuarterSize, -inNode->QuarterSize), // Bottom-left
-		FVector2d(-inNode->QuarterSize, inNode->QuarterSize),  // Top-left
-		FVector2d(inNode->QuarterSize, -inNode->QuarterSize),  // Bottom-right
-		FVector2d(inNode->QuarterSize, inNode->QuarterSize)    // Top-right
+		//Children laid out according to morton XY ordered indexing
+		FVector2d(-inNode->QuarterSize, -inNode->QuarterSize), // Bottom-left  0b00  0
+		FVector2d(-inNode->QuarterSize,  inNode->QuarterSize), // Top-left     0b01  1
+		FVector2d(inNode->QuarterSize,  -inNode->QuarterSize), // Bottom-right 0b10  2
+		FVector2d(inNode->QuarterSize,   inNode->QuarterSize)  // Top-right    0b11  3
 	};
 
-	// Calculate child centers using face transforms
-	FVector childCenters[4];
 	for (int i = 0; i < 4; i++) {
 		// Start with parent center
-		childCenters[i] = inNode->Center;
-
-		// Get the local offsets
-		double normX = childOffsets[i].X;
-		double normY = childOffsets[i].Y;
-
-		// Get axis mappings from face transform
-		int xAxisIndex = inNode->FaceTransform.AxisMap[0];
-		int yAxisIndex = inNode->FaceTransform.AxisMap[1];
-		int normalAxisIndex = inNode->FaceTransform.AxisMap[2];
-
-		int xAxisSign = inNode->FaceTransform.AxisDir[0];
-		int yAxisSign = inNode->FaceTransform.AxisDir[1];
-		int normalAxisSign = inNode->FaceTransform.AxisDir[2];
-
-		// Apply offsets to correct axes
-		double offsets[3] = { 0, 0, 0 };
-		offsets[xAxisIndex] += xAxisSign * normX;
-		offsets[yAxisIndex] += yAxisSign * normY;
-
-		// Apply calculated offsets
-		childCenters[i].X += offsets[0];
-		childCenters[i].Y += offsets[1];
-		childCenters[i].Z += offsets[2];
-	}
-
-	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(0), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[0], inNode->HalfSize, inNode->SphereRadius));
-	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(1), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[1], inNode->HalfSize, inNode->SphereRadius));
-	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(2), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[2], inNode->HalfSize, inNode->SphereRadius));
-	Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(3), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenters[3], inNode->HalfSize, inNode->SphereRadius));
-
-	for (auto child : Children) {
-		child->Parent = inNode;
-		//child->UpdateNeighborState();
-		child->GenerateMeshData();
+		FVector childCenter = inNode->Center;
+		childCenter[inNode->FaceTransform.AxisMap[0]] += inNode->FaceTransform.AxisDir[0] * childOffsets[i].X;
+		childCenter[inNode->FaceTransform.AxisMap[1]] += inNode->FaceTransform.AxisDir[1] * childOffsets[i].Y;
+		Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(i), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenter, inNode->HalfSize, inNode->SphereRadius));
 	}
 
 	Async(EAsyncExecution::TaskGraphMainThread, [this, inNode]() {
-		for (auto child : Children) {
-			child->InitializeChunk();
+		for (TSharedPtr<QuadTreeNode> child : Children) {
+			child->InitializeChunk(); // Initialize component on main thread then dispatch mesh update
+			Async(EAsyncExecution::LargeThreadPool, [this, child, inNode]() {
+				child->GenerateMeshData(); // Dispatch chunk visibility back to main thread so it happens on the next frame
+				Async(EAsyncExecution::TaskGraphMainThread, [this, inNode]() {
+					inNode->SetChunkVisibility(false);
+				});
+			});
 		}
-		inNode->SetChunkVisibility(false);
 	});
 }
 
@@ -338,15 +308,29 @@ void QuadTreeNode::InitializeChunk() {
 	if (this->NoiseGen) {
 		this->ChunkComponent->SetRenderCustomDepth(true);
 	}
-	this->ChunkComponent->AttachToComponent(this->ParentActor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
-	this->ChunkComponent->SetMaterial(0, this->ParentActor->LandMaterial);
-	this->ChunkComponent->SetMaterial(1, this->ParentActor->SeaMaterial);
-	this->ChunkComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	this->ChunkComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
-	this->ChunkComponent->SetRealtimeMesh(this->RtMesh);
-	this->RtMesh->ClearInternalFlags(EInternalObjectFlags::Async);
-	this->IsInitialized = true;
-	this->LastRenderedState = true;
+
+	FRealtimeMeshCollisionConfiguration cConfig;
+	cConfig.bShouldFastCookMeshes = false;
+	cConfig.bUseComplexAsSimpleCollision = true;
+	cConfig.bDeformableMesh = false;
+	cConfig.bUseAsyncCook = true;
+	RtMesh->SetCollisionConfig(cConfig);
+	RtMesh->SetupMaterialSlot(0, "LandMaterial");
+	RtMesh->SetupMaterialSlot(1, "SeaMaterial");
+	RtMesh->ClearInternalFlags(EInternalObjectFlags::Async);
+
+	ChunkComponent->AttachToComponent(this->ParentActor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+	ChunkComponent->SetMaterial(0, this->ParentActor->LandMaterial);
+	ChunkComponent->SetMaterial(1, this->ParentActor->SeaMaterial);
+	ChunkComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	ChunkComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
+	ChunkComponent->SetRealtimeMesh(this->RtMesh);
+
+	RtMesh->CreateSectionGroup(LandGroupKeyInner, LandMeshStreamInner);
+	RtMesh->CreateSectionGroup(SeaGroupKeyInner, SeaMeshStreamInner);
+
+	IsInitialized = true;
+	LastRenderedState = true;
 }
 
 void QuadTreeNode::DestroyChunk() {
@@ -357,11 +341,11 @@ void QuadTreeNode::DestroyChunk() {
 }
 
 void QuadTreeNode::SetChunkVisibility(bool inVisibility) {
-	this->RtMesh->SetSectionVisibility(this->landSectionKeyInner, inVisibility).Then([this, inVisibility](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
+	this->RtMesh->SetSectionVisibility(this->LandSectionKeyInner, inVisibility).Then([this, inVisibility](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
 		this->LastRenderedState = inVisibility;
 		});
 	if (this->RenderSea) {
-		this->RtMesh->SetSectionVisibility(this->seaSectionKeyInner, inVisibility).Then([this, inVisibility](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
+		this->RtMesh->SetSectionVisibility(this->SeaSectionKeyInner, inVisibility).Then([this, inVisibility](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
 			this->LastRenderedState = inVisibility;
 			});
 	}
@@ -473,7 +457,7 @@ void QuadTreeNode::GenerateMeshData()
 {
 	//GenerateMeshDataFromTemplate();
 	//if(true) return;
-	if (!IsDirty || !NoiseGen) return;
+	if (!IsDirty || !NoiseGen || !IsInitialized) return;
 
 	FVector sphereCenter = this->ParentActor->GetActorLocation();
 	int Resolution = ParentActor->FaceResolution;
@@ -732,38 +716,17 @@ void QuadTreeNode::GenerateMeshData()
 	}
 
 	this->MaxNodeRadius = maxDist;
-
-	//Initialize mesh object
-	FRealtimeMeshCollisionConfiguration cConfig;
-	cConfig.bShouldFastCookMeshes = false;
-	cConfig.bUseComplexAsSimpleCollision = true;
-	cConfig.bDeformableMesh = false;
-	cConfig.bUseAsyncCook = true;
-	this->RtMesh->SetCollisionConfig(cConfig);
-	this->RtMesh->SetupMaterialSlot(0, "LandMaterial");
-	this->RtMesh->SetupMaterialSlot(1, "SeaMaterial");
 	
-	Async(EAsyncExecution::TaskGraphMainThread, [this]() {
+	//Async(EAsyncExecution::TaskGraphMainThread, [this]() {
 		bool alwaysRenderOcean = false;
 		double seaMeshTolerance = 10.0;
 
-
-		if (this->RtMesh->GetSectionGroup(this->landGroupKeyInner)) {
-			this->RtMesh->UpdateSectionGroup(this->landGroupKeyInner, this->LandMeshStreamInner);
-			this->RtMesh->UpdateSectionConfig(this->landSectionKeyInner, this->RtMesh->GetSectionConfig(this->landSectionKeyInner), this->GetDepth() == this->MaxDepth);
-		}
-		else {
-			this->RtMesh->CreateSectionGroup(this->landGroupKeyInner, this->LandMeshStreamInner);
-			this->RtMesh->UpdateSectionConfig(this->landSectionKeyInner, this->RtMesh->GetSectionConfig(this->landSectionKeyInner), this->GetDepth() == this->MaxDepth);
-		}
+		RtMesh->UpdateSectionGroup(this->LandGroupKeyInner, this->LandMeshStreamInner);
+		RtMesh->UpdateSectionConfig(this->LandSectionKeyInner, this->RtMesh->GetSectionConfig(this->LandSectionKeyInner), this->GetDepth() == this->MaxDepth);
+		
 		if (alwaysRenderOcean || MinLandRadius + seaMeshTolerance <= this->SeaLevel) {
-			this->RenderSea = true;
-			if (this->RtMesh->GetSectionGroup(seaGroupKeyInner).IsValid()) {
-				this->RtMesh->UpdateSectionGroup(this->seaGroupKeyInner, this->SeaMeshStreamInner);
-			}
-			else {
-				this->RtMesh->CreateSectionGroup(this->seaGroupKeyInner, this->SeaMeshStreamInner);
-			}
+			RenderSea = true;
+			RtMesh->UpdateSectionGroup(this->SeaGroupKeyInner, this->SeaMeshStreamInner);
 		}
-	});
+	//});
 }
