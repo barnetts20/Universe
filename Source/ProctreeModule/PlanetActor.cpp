@@ -118,11 +118,12 @@ void APlanetActor::InitializePlanet()
 	RootNodes[(uint8)EFaceDirection::Z_NEG] = MakeShared<QuadTreeNode>(this, NoiseGen5, FQuadIndex((uint8)EFaceDirection::Z_NEG), this->MinNodeDepth, this->MaxNodeDepth, *FaceTransforms.Find(EFaceDirection::Z_NEG), FVector(0.0f, 0.0f, -halfSize), size, this->PlanetMeshParameters.planetRadius);
 
 	for (int i = 0; i < 6; i++) {
-		RootNodes[i]->GenerateMeshData();
+		//RootNodes[i]->GenerateMeshData();
 		RootNodes[i]->InitializeChunk();
 	}
 
 	this->IsInitialized = true;
+	ScheduleDataUpdate(.1);
 }
 
 void APlanetActor::UpdateLOD()
@@ -132,7 +133,80 @@ void APlanetActor::UpdateLOD()
 		ParallelFor(6, [&](int32 i) {
 			RootNodes[i]->UpdateLod();
 		});
+		ParallelFor(6, [&](int32 i) {
+			RootNodes[i]->UpdateNeighborState();
+		});
+		//ParallelFor(6, [&](int32 i) {
+		//	TArray<TSharedPtr<QuadTreeNode>> Leaves;
+		//	RootNodes[i]->CollectLeaves(Leaves);
+		//	for (auto Leaf : Leaves) {
+		//		if (Leaf.IsValid() && Leaf->IsInitialized && Leaf->IsDirty) {
+		//			Leaf->UpdateMesh();
+		//		}
+		//	}
+		//});
 	});
+}
+
+TSharedPtr<QuadTreeNode> APlanetActor::GetNodeByIndex(const FQuadIndex& Index) const
+{
+	// Get the root node for the specified face
+	TSharedPtr<QuadTreeNode> currentNode = RootNodes[Index.FaceId];
+
+	// If we're looking for the root node, return it immediately
+	if (Index.IsRoot())
+		return currentNode;
+
+	// Traverse down the tree following the quadrant path
+	uint8 targetDepth = Index.GetDepth();
+	for (uint8 level = 0; level < targetDepth; ++level)
+	{
+		// Get the quadrant at the current level
+		uint8 quadrant = Index.GetQuadrantAtDepth(level);
+
+		// Check if the current node is a leaf (has no children)
+		if (currentNode->IsLeaf())
+			return nullptr;  // Node doesn't exist at requested depth
+
+		// Check if the children array has the requested quadrant
+		if (quadrant >= currentNode->Children.Num())
+			return nullptr;  // Invalid child index
+
+		// Move to the next child in the path
+		currentNode = currentNode->Children[quadrant];
+	}
+
+	return currentNode;
+}
+
+TSharedPtr<QuadTreeNode> APlanetActor::GetLeafNodeByIndex(const FQuadIndex& Index) const
+{
+	// Get the root node for the specified face
+	TSharedPtr<QuadTreeNode> currentNode = RootNodes[Index.FaceId];
+
+	// If we're looking for the root node, return it immediately
+	if (Index.IsRoot())
+		return currentNode;
+
+	// Traverse down the tree as far as possible along the path
+	uint8 targetDepth = Index.GetDepth();
+	for (uint8 level = 0; level < targetDepth; ++level)
+	{
+		// Stop if we've reached a leaf node
+		if (currentNode->IsLeaf())
+			break;
+
+		uint8 quadrant = Index.GetQuadrantAtDepth(level);
+
+		// Stop if the requested child doesn't exist
+		if (quadrant >= currentNode->Children.Num())
+			break;
+
+		// Move to the child
+		currentNode = currentNode->Children[quadrant];
+	}
+
+	return currentNode;
 }
 
 FVector APlanetActor::GetLastCameraPosition()
@@ -228,10 +302,41 @@ void APlanetActor::TickActor(float DeltaTime, ELevelTick TickType, FActorTickFun
 			}
 		}
 
-		this->TimeSinceLastLodUpdate = 0.0;
-		this->UpdateLOD();
+		//this->TimeSinceLastLodUpdate = 0.0;
+		//this->UpdateLOD();
 	}
 }
+
+void APlanetActor::ScheduleDataUpdate(float IntervalInSeconds)
+{
+	if (!IsDataUpdateRunning && !IsDestroyed)
+	{
+		IsDataUpdateRunning = true;
+
+		FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([this, IntervalInSeconds]()
+			{
+				//**********BEGIN IMPLEMENTATION BLOCK***************
+				//**********BEGIN IMPLEMENTATION BLOCK***************
+				//**********BEGIN IMPLEMENTATION BLOCK***************
+				{
+					if (IsDestroyed) return;
+					UpdateLOD();
+				}
+				//***********END IMPLEMENTATION BLOCK***************
+				//***********END IMPLEMENTATION BLOCK***************
+				//***********END IMPLEMENTATION BLOCK***************
+
+				IsDataUpdateRunning = false;
+				FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this, IntervalInSeconds](float DeltaTime)
+					{
+						ScheduleDataUpdate(IntervalInSeconds);
+						return false;
+					}), IntervalInSeconds);
+			}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);
+	}
+}
+
+
 
 TFuture<URealtimeMeshComponent*> APlanetActor::CreateRealtimeMeshComponentAsync()
 {

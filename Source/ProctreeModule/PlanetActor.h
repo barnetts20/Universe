@@ -33,7 +33,7 @@ public:
 	
 	void InitializePlanet();
 	
-	void UpdateLOD();	
+	void UpdateLOD();
 
 	// Material properties
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
@@ -111,18 +111,16 @@ public:
 	TFuture<URealtimeMeshComponent*> CreateRealtimeMeshComponentAsync();
 	//Root nodes for each face
 	TSharedPtr<QuadTreeNode> RootNodes[6];
-	//TSharedPtr<QuadTreeNode> XPosRootNode;
-	//TSharedPtr<QuadTreeNode> XNegRootNode;
-	//TSharedPtr<QuadTreeNode> YPosRootNode;
-	//TSharedPtr<QuadTreeNode> YNegRootNode;
-	//TSharedPtr<QuadTreeNode> ZPosRootNode;
-	//TSharedPtr<QuadTreeNode> ZNegRootNode;
 
-    //FMeshTemplateTables MeshTemplateTables;
+	TSharedPtr<QuadTreeNode> GetNodeByIndex(const FQuadIndex& Index) const;
+	TSharedPtr<QuadTreeNode> GetLeafNodeByIndex(const FQuadIndex& Index) const;
     
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickActor(float DeltaTime, ELevelTick TickType, FActorTickFunction& ThisTickFunction) override;
+	bool IsDestroyed = false;
+	bool IsDataUpdateRunning = false;
+	void ScheduleDataUpdate(float IntervalInSeconds);
 
 	virtual bool ShouldTickIfViewportsOnly() const override;
 

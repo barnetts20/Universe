@@ -92,7 +92,7 @@ public:
 	//State
 	bool CanMerge = false;
 	bool IsInitialized = false;
-	bool IsDirty = false;
+	bool IsDirty = true;
 	bool LastRenderedState = false;
 	bool RenderSea = false;
 	//Bounds Data
@@ -117,7 +117,9 @@ public:
 	URealtimeMeshComponent* ChunkComponent;
 	URealtimeMeshSimple* RtMesh;
 	void TrySetLod();
-	bool UpdateNeighborLods();
+	void UpdateNeighborState();
+	void UpdateMesh();
+	//bool UpdateNeighborLods();
 	bool ShouldSplit(FVector centroid, FVector lastCamPos, double fov, double k);
 
 protected:
