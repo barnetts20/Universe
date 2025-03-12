@@ -353,8 +353,6 @@ enum PROCTREEMODULE_API EChildPosition {
 struct PROCTREEMODULE_API FCubeTransform {
 	FIntVector3 AxisMap;
 	FIntVector3 AxisDir;
-
-	bool bFlipWinding = false;
 };
 
 struct PROCTREEMODULE_API FaceTransition {
@@ -367,23 +365,21 @@ struct PROCTREEMODULE_API FaceTransition {
 struct PROCTREEMODULE_API FQuadIndex {
 	uint64 EncodedPath;
 	uint8 FaceId;
-
 	static const FaceTransition FaceTransitions[6][4];
+	static constexpr uint64 SentinelBits = 0b11ULL;
 
 	explicit FQuadIndex(uint8 InFaceId)
-		: EncodedPath(0b11), FaceId(InFaceId) {}  // Starts with the sentinel bits
+		: EncodedPath(SentinelBits), FaceId(InFaceId) {}
 
 	FQuadIndex(uint64 InPath, uint8 InFaceId)
 		: EncodedPath(InPath), FaceId(InFaceId) {}
 
-	// Get the depth from the encoded path
-	// Count the number of quadrant pairs after the sentinel bits
 	uint8 GetDepth() const {
-		uint64 path = EncodedPath >> 2; // Remove sentinel bits for counting
+		uint64 path = EncodedPath >> 2;
 		uint8 depth = 0;
 		while (path != 0) {
 			depth++;
-			path >>= 2; // Move to the next quadrant
+			path >>= 2;
 		}
 		return depth;
 	}
@@ -392,233 +388,111 @@ struct PROCTREEMODULE_API FQuadIndex {
 		return GetDepth() == 0;
 	}
 
-	// Get the quadrant index of this node (the last quadrant in the path)
+	uint8 GetQuadrantAtDepth(uint8 Level) const {
+		uint8 depth = GetDepth();
+		if (Level >= depth) return 0;
+		uint8 shiftAmount = (depth - Level - 1) * 2;
+		return (EncodedPath >> shiftAmount) & 0x3;
+	}
+
 	uint8 GetQuadrant() const {
-		if (IsRoot()) return 0; // Root has no quadrant
+		if (IsRoot()) return 0;
 		return GetQuadrantAtDepth(GetDepth() - 1);
 	}
 
-	uint8 GetQuadrantAtDepth(uint8 Level) const {
-		if (Level >= GetDepth()) return 0;
-		return (EncodedPath >> (2 + 2 * Level)) & 0x3; // Skip sentinel bits and shift to the correct depth level
-	}
-
-	// Get a child ID with the specified child index
 	FQuadIndex GetChildIndex(uint8 InChildIndex) const {
-		if (GetDepth() >= 31) return *this; // Max depth reached (31 levels + 2 sentinel bits)
-		uint64 newPath = EncodedPath << 2;   // Shift existing path left to make room for new child index
-		newPath |= (InChildIndex & 0x3);     // Add new child index at the least significant bits
-		return FQuadIndex(newPath, FaceId);  // Return new FQuadIndex with updated path
+		if (GetDepth() >= 31) return *this;
+		uint64 newPath = (EncodedPath << 2) | (InChildIndex & 0x3);
+		return FQuadIndex(newPath, FaceId);
 	}
 
-	// Get parent ID (decreases depth)
 	FQuadIndex GetParentIndex() const {
-		if (IsRoot()) return *this; // Already at root
-		uint64 newPath = EncodedPath >> 2;  // Right shift to remove the last quadrant
-		return FQuadIndex(newPath, FaceId); // Return new FQuadIndex with updated path
+		if (IsRoot()) return *this;
+		return FQuadIndex(EncodedPath >> 2, FaceId);
 	}
 
-	// Get the neighbor index in a specific direction
+	uint64 GetQuadrantPath() const {
+		return EncodedPath >> 2;
+	}
+
+	uint64 MakeEncodedPath(uint64 QuadrantPath) const {
+		return (QuadrantPath << 2) | SentinelBits;
+	}
+
+	uint8 ReflectQuadrant(uint8 quadrant, EdgeOrientation Direction) const {
+		switch (Direction) {
+		case EdgeOrientation::LEFT:
+		case EdgeOrientation::RIGHT:
+			return quadrant ^ 0x2;
+		case EdgeOrientation::UP:
+		case EdgeOrientation::DOWN:
+			return quadrant ^ 0x1;
+		default:
+			return quadrant;
+		}
+	}
+
 	FQuadIndex GetNeighborIndex(EdgeOrientation Direction) const {
-		// If we're at the root, we always cross to another face
 		if (IsRoot()) {
 			return GetCrossFaceNeighbor(Direction);
 		}
 
-		uint8 depth = GetDepth();
-		uint8 lastQuad = GetQuadrant();
+		uint8 quadrant = GetQuadrant();
+		bool atEdge = false;
 
-		// Determine if we cross a boundary
-		bool crossesBoundary = false;
 		switch (Direction) {
-		case EdgeOrientation::LEFT:
-			crossesBoundary = (lastQuad == BOTTOM_LEFT || lastQuad == TOP_LEFT);
-			break;
-		case EdgeOrientation::RIGHT:
-			crossesBoundary = (lastQuad == BOTTOM_RIGHT || lastQuad == TOP_RIGHT);
-			break;
-		case EdgeOrientation::UP:
-			crossesBoundary = (lastQuad == TOP_LEFT || lastQuad == TOP_RIGHT);
-			break;
-		case EdgeOrientation::DOWN:
-			crossesBoundary = (lastQuad == BOTTOM_LEFT || lastQuad == BOTTOM_RIGHT);
-			break;
+			case EdgeOrientation::LEFT: atEdge = (quadrant & 0x2) == 0; break;
+			case EdgeOrientation::RIGHT: atEdge = (quadrant & 0x2) != 0; break;
+			case EdgeOrientation::UP: atEdge = (quadrant & 0x1) != 0; break;
+			case EdgeOrientation::DOWN: atEdge = (quadrant & 0x1) == 0; break;
 		}
 
-		if (!crossesBoundary) {
-			// Simple case: neighbor is within same parent, just flip the appropriate bit
-			uint64 newPath = EncodedPath;
-			uint8 newQuad = lastQuad;
-
-			switch (Direction) {
-			case EdgeOrientation::LEFT:
-				newQuad = lastQuad & 0x2; // Clear rightmost bit (convert to a left quadrant)
-				break;
-			case EdgeOrientation::RIGHT:
-				newQuad = lastQuad | 0x2; // Set rightmost bit (convert to a right quadrant)
-				break;
-			case EdgeOrientation::UP:
-				newQuad = lastQuad | 0x1; // Set second bit (convert to a top quadrant)
-				break;
-			case EdgeOrientation::DOWN:
-				newQuad = lastQuad & 0x2; // Clear second bit (convert to a bottom quadrant)
-				break;
-			}
-
-			// Replace the last quadrant in the path
-			newPath &= ~(uint64(0x3)); // Clear last quadrant
-			newPath |= newQuad;        // Add new quadrant
-
-			return FQuadIndex(newPath, FaceId);
-		}
-		else {
-			// We need to go up to a common ancestor and then down
-
-			// Find the common ancestor level where the edge exists
-			uint8 ancestorLevel = depth - 1;
-			uint64 path = EncodedPath >> 2; // Skip last quadrant
-
-			// Keep moving up until we find a level where we don't cross the boundary
-			while (ancestorLevel > 0) {
-				uint8 quadrant = path & 0x3;
-				bool crossesAtThisLevel = false;
-
-				switch (Direction) {
-				case EdgeOrientation::LEFT:
-					crossesAtThisLevel = (quadrant == BOTTOM_LEFT || quadrant == TOP_LEFT);
-					break;
-				case EdgeOrientation::RIGHT:
-					crossesAtThisLevel = (quadrant == BOTTOM_RIGHT || quadrant == TOP_RIGHT);
-					break;
-				case EdgeOrientation::UP:
-					crossesAtThisLevel = (quadrant == TOP_LEFT || quadrant == TOP_RIGHT);
-					break;
-				case EdgeOrientation::DOWN:
-					crossesAtThisLevel = (quadrant == BOTTOM_LEFT || quadrant == BOTTOM_RIGHT);
-					break;
-				}
-
-				if (!crossesAtThisLevel) {
-					break; // Found the ancestor that doesn't cross
-				}
-
-				ancestorLevel--;
-				path >>= 2;
-			}
-
-			// If we couldn't find a common ancestor, we need to cross faces
-			if (ancestorLevel == 0 && ((path & 0x3) == 0)) {
-				return GetCrossFaceNeighbor(Direction);
-			}
-
-			// Compute the path to the neighbor through the common ancestor
-			// First, get the path to the common ancestor
-			uint64 ancestorPath = EncodedPath >> (2 * (depth - ancestorLevel));
-			ancestorPath <<= (2 * (depth - ancestorLevel));
-
-			// Get the quadrant at the common ancestor level
-			uint8 ancestorQuad = (EncodedPath >> (2 * (depth - ancestorLevel))) & 0x3;
-
-			// Flip the bit for the appropriate direction at the ancestor level
-			uint8 neighborAncestorQuad = ancestorQuad;
-			switch (Direction) {
-			case EdgeOrientation::LEFT:
-				neighborAncestorQuad = ancestorQuad & 0x2; // Clear rightmost bit
-				break;
-			case EdgeOrientation::RIGHT:
-				neighborAncestorQuad = ancestorQuad | 0x2; // Set rightmost bit
-				break;
-			case EdgeOrientation::UP:
-				neighborAncestorQuad = ancestorQuad | 0x1; // Set second bit
-				break;
-			case EdgeOrientation::DOWN:
-				neighborAncestorQuad = ancestorQuad & 0x2; // Clear second bit
-				break;
-			}
-
-			// Replace the quadrant at the ancestor level
-			uint64 neighborPath = ancestorPath;
-			neighborPath &= ~(uint64(0x3) << (2 * (depth - ancestorLevel)));
-			neighborPath |= (uint64(neighborAncestorQuad) << (2 * (depth - ancestorLevel)));
-
-			// Now we need to add the mirrored quadrants for all levels below the ancestor
-			for (uint8 level = ancestorLevel + 1; level <= depth; level++) {
-				uint8 quadrant = (EncodedPath >> (2 * (depth - level))) & 0x3;
-				uint8 mirroredQuadrant = quadrant;
-
-				// Mirror the quadrant based on which edge we're crossing
-				switch (Direction) {
-				case EdgeOrientation::LEFT:
-				case EdgeOrientation::RIGHT:
-					mirroredQuadrant = quadrant ^ 0x2; // Flip x-axis (horizontal)
-					break;
-				case EdgeOrientation::UP:
-				case EdgeOrientation::DOWN:
-					mirroredQuadrant = quadrant ^ 0x1; // Flip y-axis (vertical)
-					break;
-				}
-
-				neighborPath |= (uint64(mirroredQuadrant) << (2 * (depth - level)));
-			}
-
+		if (!atEdge) {
+			uint64 neighborPath = EncodedPath;
+			neighborPath ^= (Direction == EdgeOrientation::LEFT || Direction == EdgeOrientation::RIGHT) ? 0x2ULL : 0x1ULL;
 			return FQuadIndex(neighborPath, FaceId);
 		}
+
+		FQuadIndex parent = GetParentIndex();
+		FQuadIndex neighborParent = parent.GetNeighborIndex(Direction);
+		uint8 reflectedQuadrant = ReflectQuadrant(quadrant, Direction);
+		return neighborParent.GetChildIndex(reflectedQuadrant);
 	}
 
-	// Handle neighbors that cross to a different face
 	FQuadIndex GetCrossFaceNeighbor(EdgeOrientation Direction) const {
-
-		// Get the transition data for this face and direction
 		const FaceTransition& transition = FaceTransitions[FaceId][static_cast<uint8>(Direction)];
 
-		// Create the base index for the target face
-		FQuadIndex neighborIndex(transition.TargetFace);
+		uint64 newQuadrantPath = 0;
+		uint8 depth = GetDepth();
 
-		// If we're at the root, just return the adjacent face root
-		if (IsRoot()) {
-			return neighborIndex;
-		}
-
-		// Transform the path to the coordinate system of the target face
-		for (uint8 level = 0; level < GetDepth(); level++) {
+		for (uint8 level = 0; level < depth; ++level) {
 			uint8 quadrant = GetQuadrantAtDepth(level);
-			uint8 transformedQuadrant = quadrant;
 
 			// Apply flips
-			if (transition.FlipX) {
-				transformedQuadrant ^= 0x2; // Flip x-axis (BOTTOM_LEFT<->BOTTOM_RIGHT, TOP_LEFT<->TOP_RIGHT)
-			}
-			if (transition.FlipY) {
-				transformedQuadrant ^= 0x1; // Flip y-axis (BOTTOM_LEFT<->TOP_LEFT, BOTTOM_RIGHT<->TOP_RIGHT)
+			if (transition.FlipX) quadrant ^= 0x2;
+			if (transition.FlipY) quadrant ^= 0x1;
+
+			// Apply rotations
+			for (uint8 rot = 0; rot < transition.RotationQuadrants; ++rot) {
+				quadrant = ((quadrant & 0x1) << 1) | ((~quadrant >> 1) & 0x1);
 			}
 
-			// Apply rotation
-			for (uint8 i = 0; i < transition.RotationQuadrants; i++) {
-				// Rotate 90° clockwise: (x,y) -> (y,-x)
-				// In quadrant encoding, this is a specific bit manipulation
-				bool topBit = (transformedQuadrant & 0x1) != 0;
-				bool rightBit = (transformedQuadrant & 0x2) != 0;
-				transformedQuadrant = (topBit ? 0x2 : 0x0) | (rightBit ? 0x0 : 0x1);
-			}
-
-			neighborIndex = neighborIndex.GetChildIndex(transformedQuadrant);
+			newQuadrantPath = (newQuadrantPath << 2) | quadrant;
 		}
 
-		return neighborIndex;
+		uint64 encodedPath = (newQuadrantPath << 2) | SentinelBits;
+		return FQuadIndex(encodedPath, transition.TargetFace);
 	}
 
-	// Equality operator
 	bool operator==(const FQuadIndex& Other) const {
 		return FaceId == Other.FaceId && EncodedPath == Other.EncodedPath;
 	}
 
-	// Hash function for use in TMap
 	friend uint32 GetTypeHash(const FQuadIndex& ID) {
 		return HashCombine(GetTypeHash(ID.FaceId),
 			GetTypeHash(uint32(ID.EncodedPath ^ (ID.EncodedPath >> 32))));
 	}
 
-	// Check if ID is valid
 	bool IsValid() const {
 		return EncodedPath != 0;
 	}

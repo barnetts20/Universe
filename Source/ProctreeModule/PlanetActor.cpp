@@ -17,43 +17,43 @@ APlanetActor::APlanetActor()
 }
 
 void APlanetActor::InitializeFaceTransforms() {
+	//These are defined in a way to ensure consistent winding order and 
+	//Left -> Right Face Edge Transitions around the X/Y faces
 	// X+ face (points along +X axis)
 	FaceTransforms.Add(EFaceDirection::X_POS, {
 		FIntVector(1, 2, 0),  // Y=face X, Z=face Y, X=normal
-		FIntVector(1, 1, 1), // All positive
-		true
+		FIntVector(-1, 1, 1)  // X-, Y+, Z+
+		});
+
+	// Y+ face (points along +Y axis)
+	FaceTransforms.Add(EFaceDirection::Y_POS, {
+		FIntVector(0, 2, 1),  // X=face X, Z=face Y, Y=normal
+		FIntVector(1, 1, 1)   // X+, Y+, Z+
 	});
 
 	// X- face (points along -X axis)
 	FaceTransforms.Add(EFaceDirection::X_NEG, {
 		FIntVector(1, 2, 0),  // Y=face X, Z=face Y, X=normal
-		FIntVector(-1, 1, -1), // -Y, +Z, -X (changed)
-		true
+		FIntVector(1, 1, -1)  // X+, Y+, Z-
 	});
-
-	// Y+ face (points along +Y axis)
-	FaceTransforms.Add(EFaceDirection::Y_POS, {
-		FIntVector(0, 2, 1),  // X=face X, Z=face Y, Y=normal
-		FIntVector(1, 1, 1)   // +X, +Z, +Y (changed)
-		});
 
 	// Y- face (points along -Y axis) - This one was correct per your observation
 	FaceTransforms.Add(EFaceDirection::Y_NEG, {
 		FIntVector(0, 2, 1),  // X=face X, Z=face Y, Y=normal
-		FIntVector(1, -1, -1) // +X, -Z, -Y
-		});
+		FIntVector(-1, 1, -1) // X-, Y+, Z-
+	});
 
 	// Z+ face (points along +Z axis) - This one was correct per your observation
 	FaceTransforms.Add(EFaceDirection::Z_POS, {
 		FIntVector(0, 1, 2),  // X=face X, Y=face Y, Z=normal
-		FIntVector(1, -1, 1)  // +X, -Y, +Z
-		});
+		FIntVector(-1, 1, 1)  // -X, +Y, +Z
+	});
 
 	// Z- face (points along -Z axis) - This one was correct per your observation
 	FaceTransforms.Add(EFaceDirection::Z_NEG, {
 		FIntVector(0, 1, 2),  // X=face X, Y=face Y, Z=normal
 		FIntVector(1, 1, -1)  // +X, +Y, -Z
-		});
+	});
 }
 
 //Called when the actor is destroyed
@@ -134,9 +134,9 @@ void APlanetActor::UpdateLOD()
 		ParallelFor(6, [&](int32 i) {
 			RootNodes[i]->UpdateLod();
 		});
-		ParallelFor(6, [&](int32 i) {
-			RootNodes[i]->UpdateNeighborState();
-		});
+		//ParallelFor(6, [&](int32 i) {
+		//	RootNodes[i]->UpdateNeighborLod();
+		//	});
 		//ParallelFor(6, [&](int32 i) {
 		//	TArray<TSharedPtr<QuadTreeNode>> Leaves;
 		//	RootNodes[i]->CollectLeaves(Leaves);

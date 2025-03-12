@@ -60,10 +60,10 @@ public:
 	void SetChunkVisibility(bool inVisibility);
 	void DestroyChunk();
 
-	void Split(TSharedPtr<QuadTreeNode> inNode);
-	//TFuture<void> AsyncSplit(TSharedPtr<QuadTreeNode> inNode);
-	void Merge(TSharedPtr<QuadTreeNode> inNode);
-	//TFuture<void> AsyncMerge(TSharedPtr<QuadTreeNode> inNode);
+	bool IsRestructuring = false;
+	static void Split(TSharedPtr<QuadTreeNode> inNode);
+	static void Merge(TSharedPtr<QuadTreeNode> inNode);
+
 	//External References	
 	APlanetActor* ParentActor;
 	TSharedPtr<INoiseGenerator> NoiseGen;
@@ -75,6 +75,7 @@ public:
 	EFaceDirection FaceDirection;
 	FCubeTransform FaceTransform;
 	FVector Center;
+	FVector CenterOnSphere;
 	//int Resolution = 14;
 	double SphereRadius;
 	double Size;
@@ -105,11 +106,10 @@ public:
 	double MinLandRadius;
 	double MaxLandRadius;
 
-	//Populate in first mesh pass
-	FVector VirtualNeighborCentroids[2] = { FVector::ZeroVector, FVector::ZeroVector };
 	//Family
 	TWeakPtr<QuadTreeNode> Parent;
 	TArray<TSharedPtr<QuadTreeNode>> Children;
+	int NeighborLods[4] = {0,0,0,0};
 	//Payload
 	FRealtimeMeshStreamSet LandMeshStreamInner;
 	FRealtimeMeshStreamSet SeaMeshStreamInner;
@@ -118,9 +118,11 @@ public:
 	URealtimeMeshComponent* ChunkComponent;
 	URealtimeMeshSimple* RtMesh;
 	void TrySetLod();
-	void UpdateNeighborState();
+	void UpdateNeighborEdge(EdgeOrientation InEdge, int InLod);
+	void UpdateNeighborLod(int InLod);
 	void UpdateMesh();
-	//bool UpdateNeighborLods();
+	void LogNeighborLods();
+
 	bool ShouldSplit(FVector centroid, FVector lastCamPos, double fov, double k);
 
 protected:
