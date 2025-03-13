@@ -86,7 +86,7 @@ void QuadTreeNode::TrySetLod() {
 				QuadTreeNode::Split(this->AsShared());
 			}
 		}
-		else if ((parent.IsValid() && parent.Pin()->GetDepth() >= this->MinDepth) && k * parentSize < s(d2, fov)) {
+		else if ((parent.IsValid() && parent.Pin()->GetDepth() >= this->MinDepth) && k * 1.05 * parentSize < s(d2, fov)) {
 			this->CanMerge = true;
 			if (this->Index.GetQuadrant() == 3)
 			parent.Pin()->TryMerge();
@@ -106,7 +106,9 @@ void QuadTreeNode::UpdateNeighborEdge(EdgeOrientation InEdge, int InLod) {
 	if (NeighborLods[(uint8)InEdge] != InLod) {
 		NeighborLods[(uint8)InEdge] = InLod;
 		IsDirty = true;
-		//GenerateMeshData();
+		//Async(EAsyncExecution::LargeThreadPool, [this]() {
+			GenerateMeshData();
+		//});
 	}
 }
 
@@ -163,28 +165,50 @@ void QuadTreeNode::UpdateNeighborLod(int InLod) {
 	auto UpRemap = UpTestIndex.GetNeighborIndex(EdgeOrientation::DOWN);
 	auto DownRemap = DownTestIndex.GetNeighborIndex(EdgeOrientation::UP);
 
-	//if (LeftRemap.EncodedPath != Index.EncodedPath /*|| Index.FaceId != LeftRemap.FaceId*/) {
+	UEnum* FaceEnum = StaticEnum<EFaceDirection>();
+
 	if (Index.FaceId != LeftRemap.FaceId) {
-		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: OFACE %d -> 1FACE %d -> 2FACE %d"), Index.FaceId, LeftTestIndex.FaceId, LeftRemap.FaceId);
-		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: ORIGINAL %s -> LEFT %s -> RIGHT %s"), *PathToBinary(Index.EncodedPath), *PathToBinary(LeftTestIndex.EncodedPath), *PathToBinary(LeftRemap.EncodedPath));
+		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: OG  FACE %s -> LEFT %s -> RIGHT %s"),
+			*FaceEnum->GetNameStringByValue(Index.FaceId),
+			*FaceEnum->GetNameStringByValue(LeftTestIndex.FaceId),
+			*FaceEnum->GetNameStringByValue(LeftRemap.FaceId));
+		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: ORIGINAL %s -> LEFT %s -> RIGHT %s"),
+			*PathToBinary(Index.EncodedPath),
+			*PathToBinary(LeftTestIndex.EncodedPath),
+			*PathToBinary(LeftRemap.EncodedPath));
 	}
 
-	//if(RightRemap.EncodedPath != Index.EncodedPath /*|| Index.FaceId != LeftRemap.FaceId*/) {
-	if(Index.FaceId != LeftRemap.FaceId) {
-		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: OFACE %d -> 1FACE %d -> 2FACE %d"), Index.FaceId, RightTestIndex.FaceId, RightRemap.FaceId);
-		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: ORIGINAL %s -> RIGHT %s -> LEFT %s"), *PathToBinary(Index.EncodedPath), *PathToBinary(RightTestIndex.EncodedPath), *PathToBinary(RightRemap.EncodedPath));
+	if (Index.FaceId != RightRemap.FaceId) {
+		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: OG  FACE %s -> RIGHT %s -> LEFT %s"),
+			*FaceEnum->GetNameStringByValue(Index.FaceId),
+			*FaceEnum->GetNameStringByValue(RightTestIndex.FaceId),
+			*FaceEnum->GetNameStringByValue(RightRemap.FaceId));
+		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: ORIGINAL %s -> RIGHT %s -> LEFT %s"),
+			*PathToBinary(Index.EncodedPath),
+			*PathToBinary(RightTestIndex.EncodedPath),
+			*PathToBinary(RightRemap.EncodedPath));
 	}
-	
-	//if (UpRemap.EncodedPath != Index.EncodedPath /*|| Index.FaceId != UpRemap.FaceId*/) {
+
 	if (Index.FaceId != UpRemap.FaceId) {
-		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: OFACE %d -> 1FACE %d -> 2FACE %d"), Index.FaceId, UpTestIndex.FaceId, UpRemap.FaceId);
-		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: ORIGINAL %s -> UP %s -> DOWN %s"), *PathToBinary(Index.EncodedPath), *PathToBinary(UpTestIndex.EncodedPath), *PathToBinary(UpRemap.EncodedPath));
+		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: OG  FACE %s -> UP %s -> DOWN %s"),
+			*FaceEnum->GetNameStringByValue(Index.FaceId),
+			*FaceEnum->GetNameStringByValue(UpTestIndex.FaceId),
+			*FaceEnum->GetNameStringByValue(UpRemap.FaceId));
+		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: ORIGINAL %s -> UP %s -> DOWN %s"),
+			*PathToBinary(Index.EncodedPath),
+			*PathToBinary(UpTestIndex.EncodedPath),
+			*PathToBinary(UpRemap.EncodedPath));
 	}
-	
-	//if (DownRemap.EncodedPath != Index.EncodedPath /*|| Index.FaceId != DownRemap.FaceId*/) {
+
 	if (Index.FaceId != DownRemap.FaceId) {
-		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: OFACE %d -> 1FACE %d -> 2FACE %d"), Index.FaceId, DownTestIndex.FaceId, DownRemap.FaceId);
-		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: ORIGINAL %s -> DOWN %s -> UP %s"), *PathToBinary(Index.EncodedPath), *PathToBinary(DownTestIndex.EncodedPath), *PathToBinary(DownRemap.EncodedPath));
+		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: OG  FACE %s -> DOWN %s -> UP %s"),
+			*FaceEnum->GetNameStringByValue(Index.FaceId),
+			*FaceEnum->GetNameStringByValue(DownTestIndex.FaceId),
+			*FaceEnum->GetNameStringByValue(DownRemap.FaceId));
+		UE_LOG(LogTemp, Warning, TEXT("INDEX MAP: ORIGINAL %s -> DOWN %s -> UP %s"),
+			*PathToBinary(Index.EncodedPath),
+			*PathToBinary(DownTestIndex.EncodedPath),
+			*PathToBinary(DownRemap.EncodedPath));
 	}
 
 	if (LeftNeighborNode) LeftNeighborNode->UpdateNeighborEdge(EdgeOrientation::RIGHT, InLod);
@@ -248,14 +272,14 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 			child->InitializeChunk(); // Initialize component on main thread then dispatch mesh update
 		}
 		Async(EAsyncExecution::LargeThreadPool, [inNode]() {
-			for(int i = 0; i < 4; i++){
-				inNode->Children[i]->GenerateMeshData();
-			}
 			Async(EAsyncExecution::TaskGraphMainThread, [inNode]() {
 				inNode->UpdateNeighborLod(inNode->Index.GetDepth() + 1);
 				inNode->SetChunkVisibility(false);
 				inNode->IsRestructuring = false;
-			});
+			}).Wait();
+			for (int i = 0; i < 4; i++) {
+				inNode->Children[i]->GenerateMeshData();
+			}
 		});
 	});
 }
@@ -679,12 +703,12 @@ void QuadTreeNode::GenerateMeshData()
 	bool alwaysRenderOcean = false;
 	double seaMeshTolerance = 10.0;
 
-	RtMesh->UpdateSectionGroup(this->LandGroupKeyInner, this->LandMeshStreamInner);
-	RtMesh->UpdateSectionConfig(this->LandSectionKeyInner, this->RtMesh->GetSectionConfig(this->LandSectionKeyInner), this->GetDepth() == this->MaxDepth);
+	//RtMesh->UpdateSectionGroup(this->LandGroupKeyInner, this->LandMeshStreamInner);
+	//RtMesh->UpdateSectionConfig(this->LandSectionKeyInner, this->RtMesh->GetSectionConfig(this->LandSectionKeyInner), this->GetDepth() == this->MaxDepth);
 		
-	if (alwaysRenderOcean || MinLandRadius + seaMeshTolerance <= this->SeaLevel) {
+	//if (alwaysRenderOcean || MinLandRadius + seaMeshTolerance <= this->SeaLevel) {
 		RenderSea = true;
 		RtMesh->UpdateSectionGroup(this->SeaGroupKeyInner, this->SeaMeshStreamInner);
-	}
+	//}
 	//});
 }

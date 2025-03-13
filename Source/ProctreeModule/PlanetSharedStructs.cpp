@@ -59,7 +59,7 @@ const FaceTransition FQuadIndex::FaceTransitions[6][4] = {
     // X+ (0)
     {   {(uint8)EFaceDirection::Y_POS, 0, false, false}, //LEFT Y+
         {(uint8)EFaceDirection::Y_NEG, 0, false, false}, //RIGHT Y-
-        {(uint8)EFaceDirection::Z_POS, 1, false, false}, //UP 90*
+        {(uint8)EFaceDirection::Z_POS, 2, false, false}, //UP 90*
         {(uint8)EFaceDirection::Z_NEG, 1, false, false}  //DOWN 90*
     },
 

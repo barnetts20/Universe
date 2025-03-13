@@ -443,8 +443,8 @@ struct PROCTREEMODULE_API FQuadIndex {
 		switch (Direction) {
 			case EdgeOrientation::LEFT: atEdge = (quadrant & 0x2) == 0; break;
 			case EdgeOrientation::RIGHT: atEdge = (quadrant & 0x2) != 0; break;
-			case EdgeOrientation::UP: atEdge = (quadrant & 0x1) != 0; break;
-			case EdgeOrientation::DOWN: atEdge = (quadrant & 0x1) == 0; break;
+			case EdgeOrientation::DOWN: atEdge = (quadrant & 0x1) != 0; break;
+			case EdgeOrientation::UP: atEdge = (quadrant & 0x1) == 0; break;
 		}
 
 		if (!atEdge) {
