@@ -738,12 +738,12 @@ void QuadTreeNode::GenerateMeshData()
 	bool alwaysRenderOcean = false;
 	double seaMeshTolerance = 10.0;
 
-	//RtMesh->UpdateSectionGroup(this->LandGroupKeyInner, this->LandMeshStreamInner);
-	//RtMesh->UpdateSectionConfig(this->LandSectionKeyInner, this->RtMesh->GetSectionConfig(this->LandSectionKeyInner), this->GetDepth() == this->MaxDepth);
+	RtMesh->UpdateSectionGroup(this->LandGroupKeyInner, this->LandMeshStreamInner);
+	RtMesh->UpdateSectionConfig(this->LandSectionKeyInner, this->RtMesh->GetSectionConfig(this->LandSectionKeyInner), this->GetDepth() == this->MaxDepth);
 		
-	//if (alwaysRenderOcean || MinLandRadius + seaMeshTolerance <= this->SeaLevel) {
+	if (alwaysRenderOcean || MinLandRadius + seaMeshTolerance <= this->SeaLevel) {
 		RenderSea = true;
 		RtMesh->UpdateSectionGroup(this->SeaGroupKeyInner, this->SeaMeshStreamInner);
-	//}
+	}
 	//});
 }

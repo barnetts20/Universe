@@ -55,7 +55,7 @@ public:
 	int MaxNodeDepth = 16;
 	
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
-    int FaceResolution = 4;
+    int FaceResolution = 8;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
 	bool UseCameraPositionOverride = false;
