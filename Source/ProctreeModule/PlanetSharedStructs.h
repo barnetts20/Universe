@@ -534,15 +534,12 @@ struct PROCTREEMODULE_API FQuadIndex {
 
 	FQuadIndex GetCrossFaceNeighbor(EdgeOrientation Direction) const {
 		const FaceTransition& transition = FaceTransition::FaceTransitions[FaceId][(uint8)Direction];
-		UE_LOG(LogTemp, Warning, TEXT("GetCrossFaceNeighbor Called -            Face: %d, Direction: %d, Node: %s"), FaceId, (uint8)Direction, *ToString());
 		uint64 newQuadrantPath = 0;
 		uint8 depth = GetDepth();
 		for (uint8 level = 0; level < depth; ++level) {
 			newQuadrantPath = (newQuadrantPath << 2) | transition.QuadrantRemap[GetQuadrantAtDepth(level)];
 		}
-		FQuadIndex neighbor = FQuadIndex((newQuadrantPath << 2) | SentinelBits, transition.TargetFace);
-		UE_LOG(LogTemp, Warning, TEXT("GetCrossFaceNeighbor Finished - Neighbor Face: %d, Direction: %d, Node: %s"), neighbor.FaceId, (uint8)Direction, *neighbor.ToString());
-		return neighbor;
+		return FQuadIndex((newQuadrantPath << 2) | SentinelBits, transition.TargetFace);;
 	}
 
 	bool operator==(const FQuadIndex& Other) const {

@@ -466,7 +466,7 @@ public:
 		float volcanoNoiseRounding = .3;
 		float volcanoCutoff = .5;
 		int volcanoPow = 2;
-		float volcanoMulti = 2;
+		float volcanoMulti = .5;
 		float volcanoPeakInversionCutoffScale = .5;
 		float peakCutoffMin = .5;
 		float peakCutoffMax = .75;
