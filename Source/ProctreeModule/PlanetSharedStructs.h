@@ -350,22 +350,24 @@ enum PROCTREEMODULE_API EChildPosition {
 	TOP_RIGHT = 3, //0b11
 };
 
-struct PROCTREEMODULE_API FCubeTransform {
-	FIntVector3 AxisMap;
-	FIntVector3 AxisDir;
-	EdgeOrientation NeighborEdgeMap[4];
-	bool bFlipWinding;
-
-	static const FCubeTransform FaceTransforms[6];
-};
-
 struct PROCTREEMODULE_API FaceTransition {
 	uint8 TargetFace;
 	uint8 QuadrantRemap[4];
 	bool bFlipX = false;
 	bool bFlipY = false;
-	static const FaceTransition FaceTransitions[6][4];
 };
+
+struct PROCTREEMODULE_API FCubeTransform {
+	FIntVector3 AxisMap;
+	FIntVector3 AxisDir;
+	EdgeOrientation NeighborEdgeMap[4];
+	FaceTransition FaceTransitions[4];
+	bool bFlipWinding;
+
+	static const FCubeTransform FaceTransforms[6];
+};
+
+
 
 struct PROCTREEMODULE_API FQuadIndex {
 	uint64 EncodedPath;
@@ -490,7 +492,7 @@ struct PROCTREEMODULE_API FQuadIndex {
 			}
 
 			// Get the face transition
-			const FaceTransition& transition = FaceTransition::FaceTransitions[FaceId][(uint8)Direction];
+			const FaceTransition& transition = FCubeTransform::FaceTransforms[FaceId].FaceTransitions[(uint8)Direction];
 
 			// Remap the entire path
 			TArray<uint8> remappedPath;
@@ -533,7 +535,7 @@ struct PROCTREEMODULE_API FQuadIndex {
 	}
 
 	FQuadIndex GetCrossFaceNeighbor(EdgeOrientation Direction) const {
-		const FaceTransition& transition = FaceTransition::FaceTransitions[FaceId][(uint8)Direction];
+		const FaceTransition& transition = FCubeTransform::FaceTransforms[FaceId].FaceTransitions[(uint8)Direction];
 		uint64 newQuadrantPath = 0;
 		uint8 depth = GetDepth();
 		for (uint8 level = 0; level < depth; ++level) {
