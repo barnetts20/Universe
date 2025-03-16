@@ -353,19 +353,23 @@ enum PROCTREEMODULE_API EChildPosition {
 struct PROCTREEMODULE_API FCubeTransform {
 	FIntVector3 AxisMap;
 	FIntVector3 AxisDir;
+	EdgeOrientation NeighborEdgeMap[4];
+	bool bFlipWinding;
+
+	static const FCubeTransform FaceTransforms[6];
 };
 
 struct PROCTREEMODULE_API FaceTransition {
 	uint8 TargetFace;
-	uint8 RotationQuadrants; // 0=0°, 1=90°, 2=180°, 3=270°
-	bool FlipX;
-	bool FlipY;
+	uint8 QuadrantRemap[4];
+	bool bFlipX = false;
+	bool bFlipY = false;
+	static const FaceTransition FaceTransitions[6][4];
 };
 
 struct PROCTREEMODULE_API FQuadIndex {
 	uint64 EncodedPath;
 	uint8 FaceId;
-	static const FaceTransition FaceTransitions[6][4];
 	static constexpr uint64 SentinelBits = 0b11ULL;
 
 	explicit FQuadIndex(uint8 InFaceId)
@@ -432,27 +436,96 @@ struct PROCTREEMODULE_API FQuadIndex {
 		}
 	}
 
+	uint8 ApplyFlip(uint8 quadrant, bool FlipX, bool FlipY) const {
+		if (FlipX) {
+			quadrant ^= 0x2; // Flip left/right
+		}
+		if (FlipY) {
+			quadrant ^= 0x1; // Flip up/down
+		}
+		return quadrant;
+	}
+
+	// This implementation properly detects face-crossing edges regardless of node depth
 	FQuadIndex GetNeighborIndex(EdgeOrientation Direction) const {
-		if (IsRoot()) {
-			return GetCrossFaceNeighbor(Direction);
+		// Check if this node is at the edge of its face in the given direction
+		bool isFaceEdge = false;
+
+		// Walk up the tree to find if we're at a face edge
+		FQuadIndex current = *this;
+		while (!current.IsRoot()) {
+			uint8 quadrant = current.GetQuadrant();
+			bool quadAtEdge = false;
+
+			switch (Direction) {
+			case EdgeOrientation::LEFT: quadAtEdge = (quadrant & 0x2) == 0; break;
+			case EdgeOrientation::RIGHT: quadAtEdge = (quadrant & 0x2) != 0; break;
+			case EdgeOrientation::UP: quadAtEdge = (quadrant & 0x1) == 0; break;
+			case EdgeOrientation::DOWN: quadAtEdge = (quadrant & 0x1) != 0; break;
+			}
+
+			if (!quadAtEdge) {
+				// This quadrant is not at the edge in this direction
+				// So we're not at a face edge
+				isFaceEdge = false;
+				break;
+			}
+
+			// Continue checking parent
+			current = current.GetParentIndex();
+			isFaceEdge = true; // We're at face edge unless proven otherwise
 		}
 
+		// If we reached the root and all checked quadrants are at the edge,
+		// then we need to cross to another face
+		if (isFaceEdge || IsRoot()) {
+			// We need to cross to another face
+			// First, capture the entire path
+			TArray<uint8> path;
+			current = *this;
+
+			while (!current.IsRoot()) {
+				path.Insert(current.GetQuadrant(), 0);
+				current = current.GetParentIndex();
+			}
+
+			// Get the face transition
+			const FaceTransition& transition = FaceTransition::FaceTransitions[FaceId][(uint8)Direction];
+
+			// Remap the entire path
+			TArray<uint8> remappedPath;
+			for (uint8 quadrant : path) {
+				remappedPath.Add(ApplyFlip(transition.QuadrantRemap[quadrant], transition.bFlipX, transition.bFlipY));
+			}
+
+			// Build the result node starting with the target face
+			FQuadIndex result(transition.TargetFace);
+			for (uint8 remappedQuad : remappedPath) {
+				result = result.GetChildIndex(remappedQuad);
+			}
+
+			return result;
+		}
+
+		// If we're not at a face edge, we're at an internal edge or not at any edge
 		uint8 quadrant = GetQuadrant();
 		bool atEdge = false;
 
 		switch (Direction) {
-			case EdgeOrientation::LEFT: atEdge = (quadrant & 0x2) == 0; break;
-			case EdgeOrientation::RIGHT: atEdge = (quadrant & 0x2) != 0; break;
-			case EdgeOrientation::DOWN: atEdge = (quadrant & 0x1) != 0; break;
-			case EdgeOrientation::UP: atEdge = (quadrant & 0x1) == 0; break;
+		case EdgeOrientation::LEFT: atEdge = (quadrant & 0x2) == 0; break;
+		case EdgeOrientation::RIGHT: atEdge = (quadrant & 0x2) != 0; break;
+		case EdgeOrientation::UP: atEdge = (quadrant & 0x1) == 0; break;
+		case EdgeOrientation::DOWN: atEdge = (quadrant & 0x1) != 0; break;
 		}
 
 		if (!atEdge) {
+			// We're not at any edge, just flip bit for internal neighbor
 			uint64 neighborPath = EncodedPath;
 			neighborPath ^= (Direction == EdgeOrientation::LEFT || Direction == EdgeOrientation::RIGHT) ? 0x2ULL : 0x1ULL;
 			return FQuadIndex(neighborPath, FaceId);
 		}
 
+		// We're at an internal edge, needs parent lookup + reflection
 		FQuadIndex parent = GetParentIndex();
 		FQuadIndex neighborParent = parent.GetNeighborIndex(Direction);
 		uint8 reflectedQuadrant = ReflectQuadrant(quadrant, Direction);
@@ -460,28 +533,16 @@ struct PROCTREEMODULE_API FQuadIndex {
 	}
 
 	FQuadIndex GetCrossFaceNeighbor(EdgeOrientation Direction) const {
-		const FaceTransition& transition = FaceTransitions[FaceId][static_cast<uint8>(Direction)];
-
+		const FaceTransition& transition = FaceTransition::FaceTransitions[FaceId][(uint8)Direction];
+		UE_LOG(LogTemp, Warning, TEXT("GetCrossFaceNeighbor Called -            Face: %d, Direction: %d, Node: %s"), FaceId, (uint8)Direction, *ToString());
 		uint64 newQuadrantPath = 0;
 		uint8 depth = GetDepth();
-
 		for (uint8 level = 0; level < depth; ++level) {
-			uint8 quadrant = GetQuadrantAtDepth(level);
-
-			// Apply flips
-			if (transition.FlipX) quadrant ^= 0x2;
-			if (transition.FlipY) quadrant ^= 0x1;
-
-			// Apply rotations
-			for (uint8 rot = 0; rot < transition.RotationQuadrants; ++rot) {
-				quadrant = ((quadrant & 0x1) << 1) | ((~quadrant >> 1) & 0x1);
-			}
-
-			newQuadrantPath = (newQuadrantPath << 2) | quadrant;
+			newQuadrantPath = (newQuadrantPath << 2) | transition.QuadrantRemap[GetQuadrantAtDepth(level)];
 		}
-
-		uint64 encodedPath = (newQuadrantPath << 2) | SentinelBits;
-		return FQuadIndex(encodedPath, transition.TargetFace);
+		FQuadIndex neighbor = FQuadIndex((newQuadrantPath << 2) | SentinelBits, transition.TargetFace);
+		UE_LOG(LogTemp, Warning, TEXT("GetCrossFaceNeighbor Finished - Neighbor Face: %d, Direction: %d, Node: %s"), neighbor.FaceId, (uint8)Direction, *neighbor.ToString());
+		return neighbor;
 	}
 
 	bool operator==(const FQuadIndex& Other) const {
@@ -497,11 +558,14 @@ struct PROCTREEMODULE_API FQuadIndex {
 		return EncodedPath != 0;
 	}
 
-	FString ToString() const {
-		FString Result = FString::Printf(TEXT("Face:%d Depth:%d Path:"), FaceId, GetDepth());
+    FString ToString() const {
+		FString Result = FString::Printf(TEXT("Face: %d, Depth: %d, Path: "), FaceId, GetDepth());
+
 		for (int i = 0; i < GetDepth(); i++) {
 			Result += FString::Printf(TEXT("%d"), GetQuadrantAtDepth(i));
 		}
+
+		Result += FString::Printf(TEXT(" (Encoded: 0x%llX)"), EncodedPath);
 		return Result;
 	}
 };

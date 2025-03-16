@@ -1,105 +1,188 @@
 #include "PlanetSharedStructs.h"
 
-// Then, define the static table in a .cpp file:
-// Order of directions: LEFT, RIGHT, UP, DOWN
-// Order: LEFT, RIGHT, UP, DOWN
-//const FaceTransition FQuadIndex::FaceTransitions[6][4] = {
-//    // FACE: X+ (0)
-//    {
-//        {static_cast<uint8>(EFaceDirection::Z_POS), 3, false, false},  // LEFT -> Z+, rot 270°
-//        {static_cast<uint8>(EFaceDirection::Z_NEG), 1, false, false},  // RIGHT -> Z-, rot 90°
-//        {static_cast<uint8>(EFaceDirection::Y_POS), 0, false, false},  // UP -> Y+, no rot
-//        {static_cast<uint8>(EFaceDirection::Y_NEG), 0, false, false}   // DOWN -> Y-, no rotation
-//    },
-//
-//    // FACE: X- (1)
-//    {
-//        {static_cast<uint8>(EFaceDirection::Z_NEG), 3, false, false},  // LEFT -> Z-, rot 270°
-//        {static_cast<uint8>(EFaceDirection::Z_POS), 1, false, false},  // RIGHT -> Z+, rot 90°
-//        {static_cast<uint8>(EFaceDirection::Y_POS), 2, true, true},    // UP -> Y+, rot 180°, flip XY
-//        {static_cast<uint8>(EFaceDirection::Y_NEG), 0, true, true}     // DOWN -> Y-, no rotation, flip XY
-//    },
-//
-//    // FACE: Y+ (2)
-//    {
-//        {static_cast<uint8>(EFaceDirection::X_NEG), 0, false, false},  // LEFT -> X-, no rotation
-//        {static_cast<uint8>(EFaceDirection::X_POS), 0, false, false},  // RIGHT -> X+, no rotation
-//        {static_cast<uint8>(EFaceDirection::Z_POS), 0, false, false},  // UP -> Z+, no rotation
-//        {static_cast<uint8>(EFaceDirection::Z_NEG), 2, false, true}    // DOWN -> Z-, 180° rotation, flip Y
-//    },
-//
-//    // FACE: Y- (3)
-//    {
-//        {static_cast<uint8>(EFaceDirection::X_POS), 0, false, false},  // LEFT -> X+, no rotation
-//        {static_cast<uint8>(EFaceDirection::X_NEG), 1, false, false},  // RIGHT -> X-, no rotation
-//        {static_cast<uint8>(EFaceDirection::Z_POS), 0, false, false},  // UP -> Z+, no rotation
-//        {static_cast<uint8>(EFaceDirection::Z_NEG), 2, false, true}    // DOWN -> Z-, 180° rotation, flip Y
-//    },
-//
-//    // FACE: Z+ (4)
-//    {
-//        {static_cast<uint8>(EFaceDirection::X_NEG), 1, false, false},  // LEFT -> X-, no rotation
-//        {static_cast<uint8>(EFaceDirection::X_POS), 0, false, false},  // RIGHT -> X+, no rotation
-//        {static_cast<uint8>(EFaceDirection::Y_POS), 2, false, false},  // UP -> Y+, no rotation
-//        {static_cast<uint8>(EFaceDirection::Y_NEG), 0, false, false}   // DOWN -> Y-, no rotation
-//    },
-//
-//    // FACE: Z- (5)
-//    {
-//        {static_cast<uint8>(EFaceDirection::X_POS), 0, false, false},  // LEFT -> X+, 90° rotation
-//        {static_cast<uint8>(EFaceDirection::X_NEG), 1, false, false},  // RIGHT -> X-, 270° rotation
-//        {static_cast<uint8>(EFaceDirection::Y_POS), 2, false, true},   // UP -> Y+, 180° rotation, flip Y
-//        {static_cast<uint8>(EFaceDirection::Y_NEG), 0, false, false}   // DOWN -> Y-, no rotation
-//    }
-//};
+const FCubeTransform FCubeTransform::FaceTransforms[6] = {
+    {//X+
+        FIntVector( 2, 1, 0), // FACE: X+, Y+, Z+
+        FIntVector(-1, 1, 1),//WORLD: Z-, Y+, X+
+        { EdgeOrientation::RIGHT, EdgeOrientation::RIGHT, EdgeOrientation::LEFT, EdgeOrientation::RIGHT },
+        true                 //FLIP WINDING
+    },
+    {//X-
+        FIntVector( 2, 1, 0), // FACE: X+, Y+, Z+
+        FIntVector( 1,-1,-1), //WORLD: Z+, Y-, X-
+        { EdgeOrientation::LEFT, EdgeOrientation::LEFT, EdgeOrientation::LEFT, EdgeOrientation::RIGHT },
+        false                  //DO NOT FLIP WINDING
+    },
+    {//Y+
+        FIntVector( 0, 2, 1), // FACE: X+, Y+, Z+
+        FIntVector(-1,-1, 1), //WORLD: X-, Z-, Y+ 
+        { EdgeOrientation::UP, EdgeOrientation::DOWN, EdgeOrientation::DOWN, EdgeOrientation::DOWN },
+        false                 //DO NOT FLIP WINDING
+    },
+    {//Y-    
+        FIntVector( 0, 2, 1), // FACE: X+, Y+, Z+
+        FIntVector( 1, 1,-1), //WORLD: X+, Z+, Y- 
+        { EdgeOrientation::UP, EdgeOrientation::DOWN, EdgeOrientation::UP, EdgeOrientation::UP },
+        true                  //FLIP WINDING        
+    },
+    {//Z+
+        FIntVector( 0, 1, 2), // FACE: X+, Y+, Z+
+        FIntVector( 1, 1, 1), //WORLD: X+, Y+, Z+  
+        { EdgeOrientation::LEFT, EdgeOrientation::RIGHT, EdgeOrientation::UP, EdgeOrientation::DOWN },
+        true                  //FLIP WINDING        
+    },
+    {//Z-
+        FIntVector( 0, 1, 2), // FACE: X+, Y+, Z+
+        FIntVector( 1, 1,-1), //WORLD: X-, Y-, Z- 
+        { EdgeOrientation::RIGHT, EdgeOrientation::LEFT, EdgeOrientation::DOWN, EdgeOrientation::UP },
+        false                  //DO NOT FLIP WINDING
+    }
+};
 
-
-// Directions: LEFT, RIGHT, UP, DOWN
-const FaceTransition FQuadIndex::FaceTransitions[6][4] = {
+// FaceDirections:  X+ (0), X- (1), Y+ (2), Y- (3), Z+ (4), Z- (5)
+// EdgeDirections:  LEFT (0), RIGHT (1), UP (2), DOWN (3)
+const FaceTransition FaceTransition::FaceTransitions[6][4] = {
     // X+ (0)
-    {   {(uint8)EFaceDirection::Y_POS, 0, false, false}, //LEFT Y+
-        {(uint8)EFaceDirection::Y_NEG, 0, false, false}, //RIGHT Y-
-        {(uint8)EFaceDirection::Z_POS, 2, false, false}, //UP 90*
-        {(uint8)EFaceDirection::Z_NEG, 1, false, false}  //DOWN 90*
+    {   
+        {  //LEFT
+            (uint8)EFaceDirection::Z_POS,
+            {2,3,0,1}
+        }, //LEFT
+
+        {  //RIGHT
+            (uint8)EFaceDirection::Z_NEG,
+            {0,1,2,3}
+        }, //RIGHT
+
+        {  //DOWN
+            (uint8)EFaceDirection::Y_NEG,
+            {3,1,2,0}
+        }, //DOWN    
+
+        {  //UP
+            (uint8)EFaceDirection::Y_POS,
+            {2,0,3,1}
+        }, //UP
     },
 
     // X- (1)
     {
-        {(uint8)EFaceDirection::Y_NEG, 0, false, false}, // LEFT -> Y-
-        {(uint8)EFaceDirection::Y_POS, 0, false, false}, // RIGHT-> Y+
-        {(uint8)EFaceDirection::Z_POS, 3, false, false},   // UP-> Z+ 270
-        {(uint8)EFaceDirection::Z_NEG, 3, false, false}    // DOWN-> Z-, 270° flip XY
+        {//LEFT
+           (uint8)EFaceDirection::Z_NEG,
+           {1,0,3,2},
+        },//LEFT
+
+        {//RIGHT
+            (uint8)EFaceDirection::Z_POS,
+            {3,2,1,0}
+        },//RIGHT
+
+        {//DOWN
+            (uint8)EFaceDirection::Y_POS,
+            {3,1,2,0}
+        },//DOWN
+
+        {//UP
+            (uint8)EFaceDirection::Y_NEG,
+            {2,0,3,1}
+        },//UP
     },
 
     // Y+ (2)
     {
-        {(uint8)EFaceDirection::X_NEG, 0, false, false}, // LEFT -> X-
-        {(uint8)EFaceDirection::X_POS, 0, false, false}, // RIGHT-> X+
-        {(uint8)EFaceDirection::Z_POS, 2, false, false}, // UP   -> Z+ 180
-        {(uint8)EFaceDirection::Z_NEG, 0, false, false}    // DOWN-> Z-
+        {//LEFT
+        (uint8)EFaceDirection::X_POS,
+            {1,3,0,2}
+        },//LEFT
+
+        {//RIGHT
+            (uint8)EFaceDirection::X_NEG,
+            {3,1,2,0}
+        },//RIGHT
+
+        {//DOWN
+            (uint8)EFaceDirection::Z_POS,
+            {3,2,1,0}
+         },//DOWN
+
+        {//UP
+            (uint8)EFaceDirection::Z_NEG,
+            {2,3,0,1}
+        },//UP
     },
 
     // Y- (3)
     {
-        {(uint8)EFaceDirection::X_POS, 0, false, false}, // LEFT -> X+
-        {(uint8)EFaceDirection::X_NEG, 0, false, false}, // RIGHT-> X-
-        {(uint8)EFaceDirection::Z_POS, 0, false, false},   // UP   -> Z+
-        {(uint8)EFaceDirection::Z_NEG, 2, false, false}    // DOWN -> Z- 180°
+        {//LEFT
+            (uint8)EFaceDirection::X_NEG,
+            { 1,3,0,2 }
+        },//LEFT
+
+        {//RIGHT
+            (uint8)EFaceDirection::X_POS, 
+            {3,1,2,0}
+        },//RIGHT
+
+        {//DOWN
+            (uint8)EFaceDirection::Z_NEG,
+            {0,1,2,3}
+        },//DOWN
+
+        {//UP
+            (uint8)EFaceDirection::Z_POS,
+            {1,0,3,2}
+        },//UP
     },
 
     // FACE Z+ (4)
     {
-        {(uint8)EFaceDirection::X_POS, 3, false, false},  // LEFT -> Y+, rot 90°
-        {(uint8)EFaceDirection::X_NEG, 1, false, false},  // RIGHT-> Y-, rot 270°
-        {(uint8)EFaceDirection::Y_POS, 2, false, false}, // UP -> Y+ 180
-        {(uint8)EFaceDirection::Y_NEG, 0, false, false}  // DOWN -> Y-
+        {//LEFT
+            (uint8)EFaceDirection::X_NEG,
+           //0,1,2,3 - ORIGINAL QUADRANTS{3,2,1,0}
+            {3,2,1,0}
+        },//LEFT
+
+        {//RIGHT
+            (uint8)EFaceDirection::X_POS,
+           //0,1,2,3 - ORIGINAL QUADRANTS{2,3,0,1}
+            {2,3,0,1}
+        },//RIGHT
+
+        {//DOWN
+            (uint8)EFaceDirection::Y_NEG,
+           //0,1,2,3 - ORIGINAL QUADRANTS{1,0,3,2}
+            {1,0,3,2}
+        },//DOWN
+        {//UP
+            (uint8)EFaceDirection::Y_POS ,
+            //0,1,2,3 - ORIGINAL QUADRANTS{3,2,1,0}
+             {3,2,1,0}
+        },//UP
     },
 
     // FACE: Z- (5)
     {
-        {(uint8)EFaceDirection::X_NEG, 1, false, false},  // LEFT -> Y-, rot 90°
-        {(uint8)EFaceDirection::X_POS, 3, false, false},  // RIGHT-> Y+, rot 270°
-        {(uint8)EFaceDirection::Y_POS, 0, false, false},   // UP -> X+, rot 180°, flip XY
-        {(uint8)EFaceDirection::Y_NEG, 2, false, false}  // DOWN -> X-, no rotation
+        {//LEFT
+            (uint8)EFaceDirection::X_NEG,
+            //0,1,2,3 - ORIGINAL QUADRANTS{3,2,1,0}
+             {1,0,3,2}
+         },//LEFT
+
+         {//RIGHT
+             (uint8)EFaceDirection::X_POS,
+             //0,1,2,3 - ORIGINAL QUADRANTS{2,3,0,1}
+              {0,1,2,3}
+          },//RIGHT
+
+          {//DOWN
+              (uint8)EFaceDirection::Y_NEG,
+              //0,1,2,3 - ORIGINAL QUADRANTS{1,0,3,2}
+               {0,1,2,3}
+           },//DOWN
+           {//UP
+               (uint8)EFaceDirection::Y_POS ,
+               //0,1,2,3 - ORIGINAL QUADRANTS{3,2,1,0}
+                {2,3,0,1}
+           },//UP
     }
 };

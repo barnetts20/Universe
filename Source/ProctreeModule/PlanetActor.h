@@ -69,7 +69,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
 	float NoiseFrequency = 1.0;
 
-	TMap<EFaceDirection, FCubeTransform> FaceTransforms;
+	//TMap<EFaceDirection, FCubeTransform> FaceTransforms;
 
 	TQueue<TFunction<void()>> TaskQueue;
 

@@ -210,11 +210,39 @@ void QuadTreeNode::UpdateNeighborLod(int InLod) {
 			*PathToBinary(DownTestIndex.EncodedPath),
 			*PathToBinary(DownRemap.EncodedPath));
 	}
-
-	if (LeftNeighborNode) LeftNeighborNode->UpdateNeighborEdge(EdgeOrientation::RIGHT, InLod);
-	if (UpNeighborNode)	UpNeighborNode->UpdateNeighborEdge(EdgeOrientation::DOWN, InLod);
-	if (RightNeighborNode) RightNeighborNode->UpdateNeighborEdge(EdgeOrientation::LEFT, InLod);
-	if (DownNeighborNode) DownNeighborNode->UpdateNeighborEdge(EdgeOrientation::UP, InLod);
+	
+	if (LeftNeighborNode) {
+		if (LeftNeighborNode->Index.FaceId != Index.FaceId) { 
+			LeftNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::RIGHT], InLod); 
+		}
+		else {
+			LeftNeighborNode->UpdateNeighborEdge(EdgeOrientation::RIGHT, InLod);
+		}
+	}
+	if (UpNeighborNode) {
+		if (UpNeighborNode->Index.FaceId != Index.FaceId) {
+			UpNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::DOWN], InLod);
+		}
+		else {
+			UpNeighborNode->UpdateNeighborEdge(EdgeOrientation::DOWN, InLod);
+		}
+	}
+	if (RightNeighborNode) {
+		if (RightNeighborNode->Index.FaceId != Index.FaceId) {
+			RightNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::LEFT], InLod);
+		}
+		else {
+			RightNeighborNode->UpdateNeighborEdge(EdgeOrientation::LEFT, InLod);
+		}
+	}	
+	if (DownNeighborNode) {
+		if (DownNeighborNode->Index.FaceId != Index.FaceId) {
+			DownNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::UP], InLod);
+		}
+		else {
+			DownNeighborNode->UpdateNeighborEdge(EdgeOrientation::UP, InLod);
+		}
+	}
 }
 
 void QuadTreeNode::UpdateMesh() {
@@ -275,11 +303,11 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 			Async(EAsyncExecution::TaskGraphMainThread, [inNode]() {
 				inNode->UpdateNeighborLod(inNode->Index.GetDepth() + 1);
 				inNode->SetChunkVisibility(false);
-				inNode->IsRestructuring = false;
 			}).Wait();
 			for (int i = 0; i < 4; i++) {
 				inNode->Children[i]->GenerateMeshData();
 			}
+			inNode->IsRestructuring = false;
 		});
 	});
 }
@@ -633,9 +661,16 @@ void QuadTreeNode::GenerateMeshData()
 			}
 
 			for (FIndex3UI aTriangle : TrianglesToAdd) {
-				landBuilders.TrianglesBuilder->Add(aTriangle);
+				if (FaceTransform.bFlipWinding) {
+					landBuilders.TrianglesBuilder->Add(FIndex3UI(aTriangle.V0, aTriangle.V2, aTriangle.V1));
+					seaBuilders.TrianglesBuilder->Add(FIndex3UI(aTriangle.V0, aTriangle.V2, aTriangle.V1));
+				}
+				else {
+					landBuilders.TrianglesBuilder->Add(aTriangle);
+					seaBuilders.TrianglesBuilder->Add(aTriangle);
+				}
+
 				landBuilders.PolygroupsBuilder->Add(0);
-				seaBuilders.TrianglesBuilder->Add(aTriangle);
 				seaBuilders.PolygroupsBuilder->Add(1);
 			}
 		}
