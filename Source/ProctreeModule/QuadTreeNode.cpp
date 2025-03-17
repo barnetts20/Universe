@@ -656,8 +656,14 @@ void QuadTreeNode::GenerateMeshData()
 			}
 			//Base case
 			else {
-				TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, topRight));
-				TrianglesToAdd.Add(FIndex3UI(topRight, bottomLeft, bottomRight));
+				if ((x+y) % 2 == 0) {
+					TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, bottomRight));
+					TrianglesToAdd.Add(FIndex3UI(topLeft, bottomRight, topRight));
+				}
+				else {
+					TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, topRight));
+					TrianglesToAdd.Add(FIndex3UI(topRight, bottomLeft, bottomRight));
+				}
 			}
 
 			for (FIndex3UI aTriangle : TrianglesToAdd) {

@@ -132,22 +132,3 @@ protected:
 	void RecurseRemoveChildren(TSharedPtr<QuadTreeNode> InNode);
 	void RecurseUpdateLod(TWeakPtr<QuadTreeNode> InNode);
 };
-
-struct PROCTREEMODULE_API InternalMeshData {
-	InternalMeshData(int32 InResolution) {
-		ModifiedResolution = InResolution + 2;
-	};
-
-	int ModifiedResolution;
-	TArray<FVector> VertexGrid;
-	TArray<FIndex3UI> BaseTriangles;
-	TMap<uint8, int32> EdgeTriangles;
-	///TMap<uint8, int32> CornerTriangles; //TOP LEFT, TOP RIGHT, BOTTOM RIGHT, BOTTOM LEFT
-
-	FVector& GetVertex(int32 InX, int32 InY) {
-		int32 X = InX + 1;
-		int32 Y = InY + 1;
-		check(X >= 0 && X < ModifiedResolution && Y >= 0 && Y < ModifiedResolution);
-		return VertexGrid[Y * ModifiedResolution + X];
-	}
-};
