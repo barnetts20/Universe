@@ -245,6 +245,32 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 		childCenter[inNode->FaceTransform.AxisMap[1]] += inNode->FaceTransform.AxisDir[1] * childOffsets[i].Y;
 		inNode->Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(i), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenter, inNode->HalfSize, inNode->SphereRadius));
 		inNode->Children[i]->Parent = inNode.ToWeakPtr();
+
+		int newDepth = inNode->Index.GetDepth() + 1;
+		if (i == 0) {
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::DOWN] = inNode->NeighborLods[(uint8)EdgeOrientation::DOWN];
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::LEFT] = inNode->NeighborLods[(uint8)EdgeOrientation::LEFT];
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::RIGHT] = newDepth;
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::UP] = newDepth;
+		}
+		if (i == 1) {
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::DOWN] = newDepth;
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::LEFT] = inNode->NeighborLods[(uint8)EdgeOrientation::LEFT];
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::RIGHT] = newDepth;
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::UP] = inNode->NeighborLods[(uint8)EdgeOrientation::UP];
+		}
+		if (i == 2) {
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::DOWN] = inNode->NeighborLods[(uint8)EdgeOrientation::DOWN];
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::LEFT] = newDepth;
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::RIGHT] = inNode->NeighborLods[(uint8)EdgeOrientation::RIGHT];
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::UP] = newDepth;
+		}
+		if (i == 3) {
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::DOWN] = newDepth;
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::LEFT] = newDepth;
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::RIGHT] = inNode->NeighborLods[(uint8)EdgeOrientation::RIGHT];
+			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::UP] = inNode->NeighborLods[(uint8)EdgeOrientation::UP];
+		}
 	}
 
 	Async(EAsyncExecution::TaskGraphMainThread, [inNode]() {
@@ -255,7 +281,6 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 			int newLod = inNode->Index.GetDepth() + 1;
 			for (int i = 0; i < 4; i++) {
 				inNode->Children[i]->GenerateMeshData();
-				//inNode->Children[i]->UpdateNeighborLod(newLod);
 			}
 			Async(EAsyncExecution::TaskGraphMainThread, [inNode]() {
 				inNode->SetChunkVisibility(false);
@@ -888,7 +913,7 @@ void QuadTreeNode::GenerateMeshData2() {
 				//if (isEdge) {
 				//	EdgeTriangleIndices.Add(addedIdx);
 				//}
-				if (!isVirtual) {
+				if (!isVirtual && !isEdge) {
 					PatchTriangleIndices.Add(addedIdx);
 				}
 			}
@@ -937,14 +962,8 @@ void QuadTreeNode::GenerateMeshData2() {
 	bool alwaysRenderOcean = false;
 	double seaMeshTolerance = 10.0;
 
-	//UpdatePatchMesh();
+	UpdatePatchMesh();
 	UpdateEdgeMesh();
-	//RtMesh->UpdateSectionGroup(LandGroupKeyEdge, LandMeshStreamEdge);
-	//RtMesh->UpdateSectionConfig(LandSectionKeyEdge, RtMesh->GetSectionConfig(LandSectionKeyEdge), GetDepth() >= MaxDepth - 3);
-	//if (alwaysRenderOcean || MinLandRadius + seaMeshTolerance <= SeaLevel) {
-	//	RenderSea = true;
-	//	RtMesh->UpdateSectionGroup(SeaGroupKeyInner, SeaMeshStreamInner);
-	//}
 }
 
 void QuadTreeNode::GenerateMeshData()
