@@ -64,7 +64,7 @@ void QuadTreeNode::TrySetLod() {
 		auto lastCamRot = ParentActor->GetLastCameraRotation();
 
 		//Since we are doing origin rebasing frequently, the actors location can "change" arbitrarily and needs to be accounted for
-		FVector planetCenter = ParentActor->GetActorLocation(); 
+		FVector planetCenter = ParentActor->GetActorLocation();
 		FVector adjustedCentroid = LandCentroid * ParentActor->GetActorScale().X + planetCenter;
 		auto parentCenter = adjustedCentroid;
 		auto parentSize = MaxNodeRadius * ParentActor->GetActorScale().X;
@@ -78,7 +78,7 @@ void QuadTreeNode::TrySetLod() {
 			parentSize = parent.Pin()->MaxNodeRadius * ParentActor->GetActorScale().X;
 		}
 
-		double d1 = FVector::Distance(lastCamPos, adjustedCentroid);		
+		double d1 = FVector::Distance(lastCamPos, adjustedCentroid);
 		double d2 = FVector::Distance(lastCamPos, parentCenter);
 		if (ShouldSplit(adjustedCentroid, lastCamPos, fov, k)) {
 			CanMerge = false;
@@ -89,7 +89,7 @@ void QuadTreeNode::TrySetLod() {
 		else if ((parent.IsValid() && parent.Pin()->GetDepth() >= MinDepth) && k * 1.05 * parentSize < s(d2, fov)) {
 			CanMerge = true;
 			if (Index.GetQuadrant() == 3)
-			parent.Pin()->TryMerge();
+				parent.Pin()->TryMerge();
 		}
 		else {
 			CanMerge = false;
@@ -107,7 +107,7 @@ void QuadTreeNode::UpdateNeighborEdge(EdgeOrientation InEdge, int InLod) {
 		NeighborLods[(uint8)InEdge] = InLod;
 		IsDirty = true;
 		//Async(EAsyncExecution::LargeThreadPool, [this]() {
-			GenerateMeshData();
+		UpdateEdgeMesh();
 		//});
 	}
 }
@@ -153,7 +153,7 @@ void QuadTreeNode::UpdateNeighborLod(int InLod) {
 	TSharedPtr<QuadTreeNode> UpNeighborNode = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::UP));
 	TSharedPtr<QuadTreeNode> RightNeighborNode = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::RIGHT));
 	TSharedPtr<QuadTreeNode> DownNeighborNode = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::DOWN));
-	
+
 	//Verify neighbor mapping at planet scale
 	auto LeftTestIndex = Index.GetNeighborIndex(EdgeOrientation::LEFT);
 	auto RightTestIndex = Index.GetNeighborIndex(EdgeOrientation::RIGHT);
@@ -164,10 +164,10 @@ void QuadTreeNode::UpdateNeighborLod(int InLod) {
 	auto RightRemap = RightTestIndex.GetNeighborIndex(EdgeOrientation::LEFT);
 	auto UpRemap = UpTestIndex.GetNeighborIndex(EdgeOrientation::DOWN);
 	auto DownRemap = DownTestIndex.GetNeighborIndex(EdgeOrientation::UP);
-	
+
 	if (LeftNeighborNode) {
-		if (LeftNeighborNode->Index.FaceId != Index.FaceId) { 
-			LeftNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::RIGHT], InLod); 
+		if (LeftNeighborNode->Index.FaceId != Index.FaceId) {
+			LeftNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::RIGHT], InLod);
 		}
 		else {
 			LeftNeighborNode->UpdateNeighborEdge(EdgeOrientation::RIGHT, InLod);
@@ -188,7 +188,7 @@ void QuadTreeNode::UpdateNeighborLod(int InLod) {
 		else {
 			RightNeighborNode->UpdateNeighborEdge(EdgeOrientation::LEFT, InLod);
 		}
-	}	
+	}
 	if (DownNeighborNode) {
 		if (DownNeighborNode->Index.FaceId != Index.FaceId) {
 			DownNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::UP], InLod);
@@ -210,7 +210,7 @@ void QuadTreeNode::UpdateMesh() {
 		}
 		return;
 	}
-	else if(IsDirty){
+	else if (IsDirty) {
 		GenerateMeshData();
 	}
 }
@@ -252,16 +252,17 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 			child->InitializeChunk(); // Initialize component on main thread then dispatch mesh update
 		}
 		Async(EAsyncExecution::LargeThreadPool, [inNode]() {
-			Async(EAsyncExecution::TaskGraphMainThread, [inNode]() {
-				inNode->UpdateNeighborLod(inNode->Index.GetDepth() + 1);
-				inNode->SetChunkVisibility(false);
-			}).Wait();
+			int newLod = inNode->Index.GetDepth() + 1;
 			for (int i = 0; i < 4; i++) {
 				inNode->Children[i]->GenerateMeshData();
+				//inNode->Children[i]->UpdateNeighborLod(newLod);
 			}
-			inNode->IsRestructuring = false;
+			Async(EAsyncExecution::TaskGraphMainThread, [inNode]() {
+				inNode->SetChunkVisibility(false);
+				}).Wait();
+				inNode->IsRestructuring = false;
+			});
 		});
-	});
 }
 
 void QuadTreeNode::Merge(TSharedPtr<QuadTreeNode> inNode)
@@ -277,15 +278,12 @@ void QuadTreeNode::Merge(TSharedPtr<QuadTreeNode> inNode)
 		inNode->SetChunkVisibility(true);
 		for (int i = 0; i < 4; i++) {
 			inNode->Children[i]->UpdateNeighborLod(newLod);
+			inNode->Children[i]->DestroyChunk();
 		}
-		inNode->Children[0]->DestroyChunk();
-		inNode->Children[1]->DestroyChunk();
-		inNode->Children[2]->DestroyChunk();
-		inNode->Children[3]->DestroyChunk();
-		inNode->Children.Empty();
 
+		inNode->Children.Empty();
 		inNode->IsRestructuring = false;
-	});
+		});
 }
 
 void QuadTreeNode::TryMerge()
@@ -306,8 +304,8 @@ void QuadTreeNode::TryMerge()
 }
 
 void QuadTreeNode::RecurseRemoveChildren(TSharedPtr<QuadTreeNode> InNode)
-{	
-	for (TSharedPtr<QuadTreeNode> child : InNode->Children) {		
+{
+	for (TSharedPtr<QuadTreeNode> child : InNode->Children) {
 		child->DestroyChunk();
 		if (!child->IsLeaf())
 		{
@@ -357,7 +355,7 @@ void QuadTreeNode::InitializeChunk() {
 
 	RtMesh->CreateSectionGroup(LandGroupKeyInner, LandMeshStreamInner);
 	RtMesh->CreateSectionGroup(SeaGroupKeyInner, SeaMeshStreamInner);
-	
+
 	RtMesh->CreateSectionGroup(LandGroupKeyEdge, LandMeshStreamEdge);
 	RtMesh->CreateSectionGroup(SeaGroupKeyEdge, SeaMeshStreamEdge);
 
@@ -376,16 +374,16 @@ void QuadTreeNode::SetChunkVisibility(bool inVisibility) {
 	RtMesh->SetSectionVisibility(LandSectionKeyEdge, inVisibility);
 	RtMesh->SetSectionVisibility(LandSectionKeyInner, inVisibility).Then([this, inVisibility](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
 		LastRenderedState = inVisibility;
-	});
+		});
 	if (RenderSea) {
 		RtMesh->SetSectionVisibility(SeaSectionKeyEdge, inVisibility);
 		RtMesh->SetSectionVisibility(SeaSectionKeyInner, inVisibility).Then([this, inVisibility](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
 			LastRenderedState = inVisibility;
-		});
+			});
 	}
 }
 
-FMeshStreamBuilders QuadTreeNode::InitializeStreamBuilders(FRealtimeMeshStreamSet& inMeshStream, int inResolution){
+FMeshStreamBuilders QuadTreeNode::InitializeStreamBuilders(FRealtimeMeshStreamSet& inMeshStream, int inResolution) {
 	FMeshStreamBuilders Builders;
 
 	inMeshStream.Empty();
@@ -502,7 +500,7 @@ int QuadTreeNode::GenerateVertex(double x, double y, double step, FMeshStreamBui
 	FVector2f UV = FVector2f((atan2(normalizedPoint.Y, normalizedPoint.X) + PI) / (2 * PI), (acos(normalizedPoint.Z / normalizedPoint.Size()) / PI));
 
 	int returnIndex = landBuilders.PositionBuilder->Add(landPoint);
-	
+
 	seaBuilders.PositionBuilder->Add(seaPoint);
 
 	landBuilders.ColorBuilder->Add(EncodeDepthColor(landRadius - seaRadius));
@@ -517,7 +515,7 @@ int QuadTreeNode::GenerateVertex(double x, double y, double step, FMeshStreamBui
 void QuadTreeNode::UpdateEdgeMesh() {
 	float step = (Size) / (float)(ParentActor->FaceResolution - 1);
 	int ModifiedResolution = ParentActor->FaceResolution + 2;
-	
+
 	int curLodLevel = GetDepth();
 
 	int tResolution = ParentActor->FaceResolution;
@@ -525,10 +523,10 @@ void QuadTreeNode::UpdateEdgeMesh() {
 	bool leftLodChange = Index.GetDepth() > NeighborLods[(uint8)EdgeOrientation::LEFT];
 	bool topLodChange = Index.GetDepth() > NeighborLods[(uint8)EdgeOrientation::UP];
 	bool rightLodChange = Index.GetDepth() > NeighborLods[(uint8)EdgeOrientation::RIGHT];
-	bool bottomLodChange =  Index.GetDepth() > NeighborLods[(uint8)EdgeOrientation::DOWN];
+	bool bottomLodChange = Index.GetDepth() > NeighborLods[(uint8)EdgeOrientation::DOWN];
 
 	TArray<FIndex3UI> BufferTriangles;
-	
+
 	FIndex3UI topOddTri;
 	FIndex3UI bottomOddTri;
 	FIndex3UI leftOddTri;
@@ -549,7 +547,7 @@ void QuadTreeNode::UpdateEdgeMesh() {
 			//Odd quads
 			if (x % 2 != 0) {
 				//Persist odd "top right" triangles to process in even iterations
-				topOddTri = FIndex3UI(quad[0], quad[2], quad[3]); 
+				topOddTri = FIndex3UI(quad[3], quad[0], quad[2]);
 				//Always generate this triangle unless it is on the corner
 				if (x != 1) {
 					BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
@@ -559,7 +557,7 @@ void QuadTreeNode::UpdateEdgeMesh() {
 			else {
 				//If there is a lod change, we modify the previous iterations triangle instead of generating a new one
 				if (topLodChange) {
-					topOddTri[1] = quad[1];
+					topOddTri[2] = quad[2];
 					BufferTriangles.Add(topOddTri);
 				}
 				//If there is no lod change, add the last iterations triangle and the new triangle
@@ -573,143 +571,103 @@ void QuadTreeNode::UpdateEdgeMesh() {
 				}
 			}
 		}
-		{ //BOTTOM EDGE TRIANGLES
+
+		{ 
+			//BOTTOM EDGE TRIANGLES
 			int x = i;
 			int y = tResolution - 1;
-			//TOP LEFT, TOP RIGHT, BOTTOM LEFT, BOTTOM RIGHT
+			
 			int topLeft = x * ModifiedResolution + y;
 			int bottomLeft = (x + 1) * ModifiedResolution + y;
-			int quad[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
-			if (x % 2 == 0) {
-				if (x == tResolution - 1) {
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
-				}
-				else {
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
+
+			//			   TOP LEFT, TOP RIGHT,  BOTTOM LEFT, BOTTOM RIGHT
+			int quad[4] = { bottomLeft, bottomLeft + 1, topLeft, topLeft + 1 };
+
+			//Odd quads
+			if (x % 2 != 0) {
+				//Persist odd "top right" triangles to process in even iterations
+				bottomOddTri = FIndex3UI(quad[3], quad[0], quad[1]);
+				//Always generate this triangle unless it is on the corner
+				if (x != 1) {
+					BufferTriangles.Add(FIndex3UI(quad[3], quad[2], quad[0]));
 				}
 			}
+			//Even quads
 			else {
-				if (x == 1) {
-					BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
+				//If there is a lod change, we modify the previous iterations triangle instead of generating a new one
+				if (bottomLodChange) {
+					bottomOddTri[2] = quad[1];
+					BufferTriangles.Add(bottomOddTri);
 				}
+				//If there is no lod change, add the last iterations triangle and the new triangle
 				else {
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
-					BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
+					BufferTriangles.Add(bottomOddTri);
+					BufferTriangles.Add(FIndex3UI(quad[1], quad[3], quad[2]));
+				}
+				//Always generate this triangle unless it is on the corner
+				if (x != tResolution - 1) {
+					BufferTriangles.Add(FIndex3UI(quad[0], quad[1], quad[2]));
 				}
 			}
 		}
-		{ //LEFT EDGE TRIANGLES
-			int x = 1;
-			int y = i;
-			//TOP LEFT, TOP RIGHT, BOTTOM LEFT, BOTTOM RIGHT
-			int topLeft = x * ModifiedResolution + y;
-			int bottomLeft = (x + 1) * ModifiedResolution + y;
-			int quad[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
-			if (y % 2 != 0) {
-				if (y == 1) {
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
-				}
-				else {
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
-				}
-			}
-			else {
-				if (y == tResolution - 1) {
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
-				}
-				else {
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
-					BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
-				}
-			}
-		}
-		{ // RIGHT EDGE TRIANGLES
-			int x = tResolution - 1;  // Last column of non-virtual vertices
-			int y = i;
-			// TOP LEFT, TOP RIGHT, BOTTOM LEFT, BOTTOM RIGHT
-			int topLeft = x * ModifiedResolution + y;
-			int bottomLeft = (x + 1) * ModifiedResolution + y;
-			int quad[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
 
-			if (y % 2 == 0) {
-				if (y == tResolution - 1) {
-					// Special case for top-right corner - only add the triangle that doesn't overlap with top edge
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
-				}
-				else {
-					// Regular case
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
-				}
-			}
-			else {
-				if (y == 1) {
-					// Special case for bottom-right corner - only add the triangle that doesn't overlap with bottom edge
-					BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
-				}
-				else {
-					// Regular case
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
-					BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
-				}
-			}
-		}
-	}
+		//{ //LEFT EDGE TRIANGLES
+		//	int x = 1;
+		//	int y = i;
+		//	//TOP LEFT, TOP RIGHT, BOTTOM LEFT, BOTTOM RIGHT
+		//	int topLeft = x * ModifiedResolution + y;
+		//	int bottomLeft = (x + 1) * ModifiedResolution + y;
+		//	int quad[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
+		//	if (y % 2 != 0) {
+		//		if (y == 1) {
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
+		//		}
+		//		else {
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
+		//		}
+		//	}
+		//	else {
+		//		if (y == tResolution - 1) {
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
+		//		}
+		//		else {
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
+		//			BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
+		//		}
+		//	}
+		//}
+		//{ // RIGHT EDGE TRIANGLES
+		//	int x = tResolution - 1;  // Last column of non-virtual vertices
+		//	int y = i;
+		//	// TOP LEFT, TOP RIGHT, BOTTOM LEFT, BOTTOM RIGHT
+		//	int topLeft = x * ModifiedResolution + y;
+		//	int bottomLeft = (x + 1) * ModifiedResolution + y;
+		//	int quad[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
 
-	//Process "top" triangles
-	if (false/*topLodChange*/) {
-		for (int i = 1; i < tResolution-1; i += 2) {
-			int x = i;
-			int y = 1;
-
-			//TOP LEFT, TOP RIGHT, BOTTOM LEFT, BOTTOM RIGHT
-			int topLeft = x * ModifiedResolution + y;
-			int bottomLeft = (x + 1) * ModifiedResolution + y;
-			int quad1[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
-			int quad2[4] = { topLeft + 1, topLeft + 2, bottomLeft + 1, bottomLeft + 2 };
-
-			BufferTriangles.Add(FIndex3UI(quad1[0], quad1[3], quad2[1])); //Add the major triangle for these 2 quads
-			//Fill the remaining triangles that do not belong to other edges
-			if (x == 1) {
-				BufferTriangles.Add(FIndex3UI(quad2[2], quad2[3], quad2[1]));
-			}
-			else if (x == tResolution - 2) {
-				BufferTriangles.Add(FIndex3UI(quad1[0], quad1[2], quad1[3]));
-			}
-			else {
-				BufferTriangles.Add(FIndex3UI(quad2[2], quad2[3], quad2[1]));
-				BufferTriangles.Add(FIndex3UI(quad1[0], quad1[2], quad1[3]));
-			}
-		}
-	}
-	else {
-
-	}
-
-	//Process "bottom" triangles
-	if (bottomLodChange) {
-
-	}
-	else {
-
-	}
-
-	//Process "left" triangles
-	if (leftLodChange) {
-
-	}
-	else {
-
-	}
-
-	//Process "right" triangles
-	if (rightLodChange) {
-
-	}
-	else {
-
+		//	if (y % 2 == 0) {
+		//		if (y == tResolution - 1) {
+		//			// Special case for top-right corner - only add the triangle that doesn't overlap with top edge
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
+		//		}
+		//		else {
+		//			// Regular case
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
+		//		}
+		//	}
+		//	else {
+		//		if (y == 1) {
+		//			// Special case for bottom-right corner - only add the triangle that doesn't overlap with bottom edge
+		//			BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
+		//		}
+		//		else {
+		//			// Regular case
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
+		//			BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
+		//		}
+		//	}
+		//}
 	}
 
 	auto landEdgeBuilders = InitializeStreamBuilders(LandMeshStreamEdge, ParentActor->FaceResolution);
@@ -772,7 +730,7 @@ void QuadTreeNode::UpdateEdgeMesh() {
 void QuadTreeNode::UpdatePatchMesh() {
 	auto landBuilders = InitializeStreamBuilders(LandMeshStreamInner, ParentActor->FaceResolution);
 	auto seaBuilders = InitializeStreamBuilders(SeaMeshStreamInner, ParentActor->FaceResolution);
-	
+
 	for (int32 patchIdx : PatchTriangleIndices) {
 		FIndex3UI tri = AllTriangles[patchIdx];
 
@@ -835,7 +793,7 @@ void QuadTreeNode::GenerateMeshData2() {
 	if (!IsDirty || !NoiseGen || !IsInitialized) return;
 	IsGenerating = true;
 	IsDirty = false;
-	
+
 	LandVertices.Reset();
 	SeaVertices.Reset();
 	LandNormals.Reset();
