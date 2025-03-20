@@ -533,138 +533,158 @@ void QuadTreeNode::UpdateEdgeMesh() {
 	FIndex3UI rightOddTri;
 
 	for (int i = 1; i < tResolution; i++) {
-		{ 
-			//TOP EDGE TRIANGLES
-			int x = i;
-			int y = 1;
-			
+		//{ 
+		//	//TOP EDGE TRIANGLES
+		//	int x = i;
+		//	int y = 1;
+		//	
+		//	int topLeft = x * ModifiedResolution + y;
+		//	int bottomLeft = (x + 1) * ModifiedResolution + y;
+
+		//	//			   TOP LEFT, TOP RIGHT,  BOTTOM LEFT, BOTTOM RIGHT
+		//	int quad[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
+
+		//	//Odd quads
+		//	if (x % 2 != 0) {
+		//		//Persist odd "top right" triangles to process in even iterations
+		//		topOddTri = FIndex3UI(quad[3], quad[0], quad[2]);
+		//		//Always generate this triangle unless it is on the corner
+		//		if (x != 1) {
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
+		//		}
+		//	}
+		//	//Even quads
+		//	else {
+		//		//If there is a lod change, we modify the previous iterations triangle instead of generating a new one
+		//		if (topLodChange) {
+		//			topOddTri[2] = quad[2];
+		//			BufferTriangles.Add(topOddTri);
+		//		}
+		//		//If there is no lod change, add the last iterations triangle and the new triangle
+		//		else {
+		//			BufferTriangles.Add(topOddTri);
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
+		//		}
+		//		//Always generate this triangle unless it is on the corner
+		//		if (x != tResolution - 1) {
+		//			BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
+		//		}
+		//	}
+		//}
+
+		//{ 
+		//	//BOTTOM EDGE TRIANGLES
+		//	int x = i;
+		//	int y = tResolution - 1;
+		//	
+		//	int topLeft = x * ModifiedResolution + y;
+		//	int bottomLeft = (x + 1) * ModifiedResolution + y;
+
+		//	//			   TOP LEFT, TOP RIGHT,  BOTTOM LEFT, BOTTOM RIGHT
+		//	int quad[4] = { bottomLeft, bottomLeft + 1, topLeft, topLeft + 1 };
+
+		//	//Odd quads
+		//	if (x % 2 != 0) {
+		//		//Persist odd "top right" triangles to process in even iterations
+		//		bottomOddTri = FIndex3UI(quad[3], quad[0], quad[1]);
+		//		//Always generate this triangle unless it is on the corner
+		//		if (x != 1) {
+		//			BufferTriangles.Add(FIndex3UI(quad[3], quad[2], quad[0]));
+		//		}
+		//	}
+		//	//Even quads
+		//	else {
+		//		//If there is a lod change, we modify the previous iterations triangle instead of generating a new one
+		//		if (bottomLodChange) {
+		//			bottomOddTri[2] = quad[1];
+		//			BufferTriangles.Add(bottomOddTri);
+		//		}
+		//		//If there is no lod change, add the last iterations triangle and the new triangle
+		//		else {
+		//			BufferTriangles.Add(bottomOddTri);
+		//			BufferTriangles.Add(FIndex3UI(quad[1], quad[3], quad[2]));
+		//		}
+		//		//Always generate this triangle unless it is on the corner
+		//		if (x != tResolution - 1) {
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[1], quad[2]));
+		//		}
+		//	}
+		//}
+
+		{
+			//LEFT EDGE TRIANGLES
+			int y = i;
+			int x = 1;
+
 			int topLeft = x * ModifiedResolution + y;
 			int bottomLeft = (x + 1) * ModifiedResolution + y;
 
 			//			   TOP LEFT, TOP RIGHT,  BOTTOM LEFT, BOTTOM RIGHT
-			int quad[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
+			int quad[4] = { topLeft, bottomLeft, topLeft + 1, bottomLeft + 1 };
 
 			//Odd quads
-			if (x % 2 != 0) {
+			if (y % 2 != 0) {
 				//Persist odd "top right" triangles to process in even iterations
-				topOddTri = FIndex3UI(quad[3], quad[0], quad[2]);
+				leftOddTri = FIndex3UI(quad[3], quad[0], quad[2]);
 				//Always generate this triangle unless it is on the corner
-				if (x != 1) {
+				if (y != 1) {
 					BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
 				}
 			}
 			//Even quads
 			else {
 				//If there is a lod change, we modify the previous iterations triangle instead of generating a new one
-				if (topLodChange) {
-					topOddTri[2] = quad[2];
-					BufferTriangles.Add(topOddTri);
+				if (leftLodChange) {
+					leftOddTri[2] = quad[2];
+					BufferTriangles.Add(leftOddTri);
 				}
 				//If there is no lod change, add the last iterations triangle and the new triangle
 				else {
-					BufferTriangles.Add(topOddTri);
+					BufferTriangles.Add(leftOddTri);
 					BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
 				}
 				//Always generate this triangle unless it is on the corner
-				if (x != tResolution - 1) {
+				if (y != tResolution - 1) {
 					BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
 				}
 			}
 		}
 
-		{ 
-			//BOTTOM EDGE TRIANGLES
-			int x = i;
-			int y = tResolution - 1;
-			
-			int topLeft = x * ModifiedResolution + y;
-			int bottomLeft = (x + 1) * ModifiedResolution + y;
+		//{
+		//	//RIGHT EDGE TRIANGLES
+		//	int x = i;
+		//	int y = tResolution - 1;
 
-			//			   TOP LEFT, TOP RIGHT,  BOTTOM LEFT, BOTTOM RIGHT
-			int quad[4] = { bottomLeft, bottomLeft + 1, topLeft, topLeft + 1 };
-
-			//Odd quads
-			if (x % 2 != 0) {
-				//Persist odd "top right" triangles to process in even iterations
-				bottomOddTri = FIndex3UI(quad[3], quad[0], quad[1]);
-				//Always generate this triangle unless it is on the corner
-				if (x != 1) {
-					BufferTriangles.Add(FIndex3UI(quad[3], quad[2], quad[0]));
-				}
-			}
-			//Even quads
-			else {
-				//If there is a lod change, we modify the previous iterations triangle instead of generating a new one
-				if (bottomLodChange) {
-					bottomOddTri[2] = quad[1];
-					BufferTriangles.Add(bottomOddTri);
-				}
-				//If there is no lod change, add the last iterations triangle and the new triangle
-				else {
-					BufferTriangles.Add(bottomOddTri);
-					BufferTriangles.Add(FIndex3UI(quad[1], quad[3], quad[2]));
-				}
-				//Always generate this triangle unless it is on the corner
-				if (x != tResolution - 1) {
-					BufferTriangles.Add(FIndex3UI(quad[0], quad[1], quad[2]));
-				}
-			}
-		}
-
-		//{ //LEFT EDGE TRIANGLES
-		//	int x = 1;
-		//	int y = i;
-		//	//TOP LEFT, TOP RIGHT, BOTTOM LEFT, BOTTOM RIGHT
 		//	int topLeft = x * ModifiedResolution + y;
 		//	int bottomLeft = (x + 1) * ModifiedResolution + y;
-		//	int quad[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
-		//	if (y % 2 != 0) {
-		//		if (y == 1) {
-		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
-		//		}
-		//		else {
-		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
-		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
-		//		}
-		//	}
-		//	else {
-		//		if (y == tResolution - 1) {
-		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
-		//		}
-		//		else {
-		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
-		//			BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
-		//		}
-		//	}
-		//}
-		//{ // RIGHT EDGE TRIANGLES
-		//	int x = tResolution - 1;  // Last column of non-virtual vertices
-		//	int y = i;
-		//	// TOP LEFT, TOP RIGHT, BOTTOM LEFT, BOTTOM RIGHT
-		//	int topLeft = x * ModifiedResolution + y;
-		//	int bottomLeft = (x + 1) * ModifiedResolution + y;
-		//	int quad[4] = { topLeft, topLeft + 1, bottomLeft, bottomLeft + 1 };
 
-		//	if (y % 2 == 0) {
-		//		if (y == tResolution - 1) {
-		//			// Special case for top-right corner - only add the triangle that doesn't overlap with top edge
-		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
-		//		}
-		//		else {
-		//			// Regular case
-		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[3]));
-		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[3], quad[1]));
+		//	//			   TOP LEFT, TOP RIGHT,  BOTTOM LEFT, BOTTOM RIGHT
+		//	int quad[4] = { bottomLeft, bottomLeft + 1, topLeft, topLeft + 1 };
+
+		//	//Odd quads
+		//	if (x % 2 != 0) {
+		//		//Persist odd "top right" triangles to process in even iterations
+		//		bottomOddTri = FIndex3UI(quad[3], quad[0], quad[1]);
+		//		//Always generate this triangle unless it is on the corner
+		//		if (x != 1) {
+		//			BufferTriangles.Add(FIndex3UI(quad[3], quad[2], quad[0]));
 		//		}
 		//	}
+		//	//Even quads
 		//	else {
-		//		if (y == 1) {
-		//			// Special case for bottom-right corner - only add the triangle that doesn't overlap with bottom edge
-		//			BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
+		//		//If there is a lod change, we modify the previous iterations triangle instead of generating a new one
+		//		if (bottomLodChange) {
+		//			bottomOddTri[2] = quad[1];
+		//			BufferTriangles.Add(bottomOddTri);
 		//		}
+		//		//If there is no lod change, add the last iterations triangle and the new triangle
 		//		else {
-		//			// Regular case
-		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[2], quad[1]));
-		//			BufferTriangles.Add(FIndex3UI(quad[1], quad[2], quad[3]));
+		//			BufferTriangles.Add(bottomOddTri);
+		//			BufferTriangles.Add(FIndex3UI(quad[1], quad[3], quad[2]));
+		//		}
+		//		//Always generate this triangle unless it is on the corner
+		//		if (x != tResolution - 1) {
+		//			BufferTriangles.Add(FIndex3UI(quad[0], quad[1], quad[2]));
 		//		}
 		//	}
 		//}
