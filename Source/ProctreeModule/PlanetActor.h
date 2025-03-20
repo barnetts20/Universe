@@ -49,13 +49,13 @@ public:
 	bool TickInEditor = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
-	int MinNodeDepth = 4;
+	int MinNodeDepth = 3;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
-	int MaxNodeDepth = 16;
+	int MaxNodeDepth = 4;
 	
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
-    int FaceResolution = 8;
+    int FaceResolution = 9;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
 	bool UseCameraPositionOverride = false;

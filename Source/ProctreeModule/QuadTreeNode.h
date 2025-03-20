@@ -34,11 +34,14 @@ public:
 	
 
 	FRealtimeMeshLODKey LodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
-	FRealtimeMeshSectionGroupKey LandGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, FName("land_mesh_internal"));
-	FRealtimeMeshSectionGroupKey SeaGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, FName("sea_mesh_internal"));
+	FRealtimeMeshSectionGroupKey LandGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, 1);
+	FRealtimeMeshSectionGroupKey SeaGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, 2);
 	FRealtimeMeshSectionKey LandSectionKeyInner = FRealtimeMeshSectionKey::CreateForPolyGroup(LandGroupKeyInner, 0);
 	FRealtimeMeshSectionKey SeaSectionKeyInner = FRealtimeMeshSectionKey::CreateForPolyGroup(SeaGroupKeyInner, 1);
-
+	FRealtimeMeshSectionGroupKey LandGroupKeyEdge = FRealtimeMeshSectionGroupKey::Create(LodKey, 3);
+	FRealtimeMeshSectionGroupKey SeaGroupKeyEdge = FRealtimeMeshSectionGroupKey::Create(LodKey, 4);
+	FRealtimeMeshSectionKey LandSectionKeyEdge = FRealtimeMeshSectionKey::CreateForPolyGroup(LandGroupKeyEdge, 0);
+	FRealtimeMeshSectionKey SeaSectionKeyEdge = FRealtimeMeshSectionKey::CreateForPolyGroup(SeaGroupKeyEdge, 1);
 	//Structure modification functions
 
 	void TryMerge();
@@ -53,9 +56,30 @@ public:
 	FVector GetFacePoint(float step, double x, double y);
 	FColor EncodeDepthColor(float depth);
 
-	int GenerateVertex(double x, double y, double step, FMeshStreamBuilders& landBuilders, FMeshStreamBuilders& seaBuilders);
 
+	TArray<FVector> LandVertices;
+	TArray<FVector3f> LandNormals;
+	TArray<FColor> LandColors;
+
+	TArray<FVector> SeaVertices;
+	TArray<FVector3f> SeaNormals;
+	TArray<FColor> SeaColors;
+
+	TArray<FVector2f> TexCoords;
+
+	TArray<FIndex3UI> AllTriangles;
+	TArray<int> EdgeTriangleIndices;
+	TArray<int> PatchTriangleIndices;
+
+	int GenerateVertex2(double x, double y, double step);
+	int GenerateVertex(double x, double y, double step, FMeshStreamBuilders& landBuilders, FMeshStreamBuilders& seaBuilders);
+	
+	bool IsGenerating = false;
+	void UpdatePatchMesh();
+	void UpdateEdgeMesh();
+	void GenerateMeshData2();
 	void GenerateMeshData();
+	
 	void InitializeChunk();
 	void SetChunkVisibility(bool inVisibility);
 	void DestroyChunk();

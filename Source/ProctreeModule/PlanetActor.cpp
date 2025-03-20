@@ -156,11 +156,7 @@ TSharedPtr<QuadTreeNode> APlanetActor::GetNodeByIndex(const FQuadIndex& Index) c
 
 		// Check if the current node is a leaf (has no children)
 		if (currentNode->IsLeaf())
-			return nullptr;  // Node doesn't exist at requested depth
-
-		// Check if the children array has the requested quadrant
-		if (quadrant >= currentNode->Children.Num())
-			return nullptr;  // Invalid child index
+			return currentNode;  // Node doesn't exist at requested depth
 
 		// Move to the next child in the path
 		currentNode = currentNode->Children[quadrant];
