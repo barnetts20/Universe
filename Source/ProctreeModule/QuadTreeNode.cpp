@@ -694,7 +694,9 @@ void QuadTreeNode::UpdateEdgeMesh() {
 	auto seaEdgeBuilders = InitializeStreamBuilders(SeaMeshStreamEdge, ParentActor->FaceResolution);
 
 	for (FIndex3UI tri : BufferTriangles) {
-
+		if (FaceTransform.bFlipWinding) {
+			tri = FIndex3UI(tri[0], tri[2], tri[1]);
+		}
 		int lv0 = landEdgeBuilders.PositionBuilder->Add(LandVertices[tri[0]]);
 		landEdgeBuilders.ColorBuilder->Add(LandColors[tri[0]]);
 		landEdgeBuilders.TexCoordsBuilder->Add(TexCoords[tri[0]]);
