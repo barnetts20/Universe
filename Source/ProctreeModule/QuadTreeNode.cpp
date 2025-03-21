@@ -27,6 +27,11 @@ QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerat
 	LodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
 
 	SeaLevel = InRadius;
+	int myDepth = Index.GetDepth();
+	NeighborLods[0] = myDepth;
+	NeighborLods[1] = myDepth;
+	NeighborLods[2] = myDepth;
+	NeighborLods[3] = myDepth;
 }
 
 QuadTreeNode::~QuadTreeNode()
@@ -49,6 +54,22 @@ void QuadTreeNode::RecurseUpdateLod(TWeakPtr<QuadTreeNode> InNode) {
 			RecurseUpdateLod(tNode->Children[i]);
 		}
 		tNode->TrySetLod();
+	}
+}
+
+void QuadTreeNode::UpdateNeighbors() {
+	TArray<TSharedPtr<QuadTreeNode>> leaves;
+	CollectLeaves(leaves);
+
+	TArray<TSharedPtr<QuadTreeNode>> updateLeaves;
+	for (auto aLeaf : leaves) {
+		if (aLeaf->CheckNeighbors()) {
+			updateLeaves.Add(aLeaf);
+		}
+	}
+
+	for (auto aLeaf : updateLeaves) {
+		aLeaf->UpdateEdgeMesh();
 	}
 }
 
@@ -99,28 +120,10 @@ void QuadTreeNode::TrySetLod() {
 
 bool QuadTreeNode::ShouldSplit(FVector centroid, FVector lastCamPos, double fov, double k) {
 	double d1 = FVector::Distance(lastCamPos, centroid);
-	return GetDepth() < MinDepth || (GetDepth() < MaxDepth && k * MaxNodeRadius * ParentActor->GetActorScale().X > s(d1, fov));
+	int d = GetDepth();
+	if (d >= MaxDepth) return false;
+	return d < MinDepth || (k * MaxNodeRadius * ParentActor->GetActorScale().X > s(d1, fov));
 }
-
-void QuadTreeNode::UpdateNeighborEdge(EdgeOrientation InEdge, int InLod) {
-	if (NeighborLods[(uint8)InEdge] != InLod) {
-		NeighborLods[(uint8)InEdge] = InLod;
-		IsDirty = true;
-		//Async(EAsyncExecution::LargeThreadPool, [this]() {
-		UpdateEdgeMesh();
-		//});
-	}
-}
-
-//void QuadTreeNode::LogNeighborLods() {
-//	// Log the node's index and its neighbor LOD values
-//	UE_LOG(LogTemp, Warning, TEXT("Node %s Neighbor LODs: L: %d, U: %d, R: %d, D: %d"),
-//		*Index.ToString(),
-//		NeighborLods[(uint8)EdgeOrientation::LEFT],
-//		NeighborLods[(uint8)EdgeOrientation::UP],
-//		NeighborLods[(uint8)EdgeOrientation::RIGHT],
-//		NeighborLods[(uint8)EdgeOrientation::DOWN]);
-//}
 
 FString PathToBinary(uint64 Path) {
 	FString binaryString;
@@ -147,74 +150,6 @@ FString PathToBinary(uint64 Path) {
 	return binaryString;
 }
 
-
-void QuadTreeNode::UpdateNeighborLod(int InLod) {
-	TSharedPtr<QuadTreeNode> LeftNeighborNode = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::LEFT));
-	TSharedPtr<QuadTreeNode> UpNeighborNode = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::UP));
-	TSharedPtr<QuadTreeNode> RightNeighborNode = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::RIGHT));
-	TSharedPtr<QuadTreeNode> DownNeighborNode = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::DOWN));
-
-	//Verify neighbor mapping at planet scale
-	auto LeftTestIndex = Index.GetNeighborIndex(EdgeOrientation::LEFT);
-	auto RightTestIndex = Index.GetNeighborIndex(EdgeOrientation::RIGHT);
-	auto UpTestIndex = Index.GetNeighborIndex(EdgeOrientation::UP);
-	auto DownTestIndex = Index.GetNeighborIndex(EdgeOrientation::DOWN);
-
-	auto LeftRemap = LeftTestIndex.GetNeighborIndex(EdgeOrientation::RIGHT);
-	auto RightRemap = RightTestIndex.GetNeighborIndex(EdgeOrientation::LEFT);
-	auto UpRemap = UpTestIndex.GetNeighborIndex(EdgeOrientation::DOWN);
-	auto DownRemap = DownTestIndex.GetNeighborIndex(EdgeOrientation::UP);
-
-	if (LeftNeighborNode) {
-		if (LeftNeighborNode->Index.FaceId != Index.FaceId) {
-			LeftNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::RIGHT], InLod);
-		}
-		else {
-			LeftNeighborNode->UpdateNeighborEdge(EdgeOrientation::RIGHT, InLod);
-		}
-	}
-	if (UpNeighborNode) {
-		if (UpNeighborNode->Index.FaceId != Index.FaceId) {
-			UpNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::DOWN], InLod);
-		}
-		else {
-			UpNeighborNode->UpdateNeighborEdge(EdgeOrientation::DOWN, InLod);
-		}
-	}
-	if (RightNeighborNode) {
-		if (RightNeighborNode->Index.FaceId != Index.FaceId) {
-			RightNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::LEFT], InLod);
-		}
-		else {
-			RightNeighborNode->UpdateNeighborEdge(EdgeOrientation::LEFT, InLod);
-		}
-	}
-	if (DownNeighborNode) {
-		if (DownNeighborNode->Index.FaceId != Index.FaceId) {
-			DownNeighborNode->UpdateNeighborEdge(FaceTransform.NeighborEdgeMap[(uint8)EdgeOrientation::UP], InLod);
-		}
-		else {
-			DownNeighborNode->UpdateNeighborEdge(EdgeOrientation::UP, InLod);
-		}
-	}
-}
-
-void QuadTreeNode::UpdateMesh() {
-	// If this node has children, recurse into them
-	if (!IsLeaf())
-	{
-		for (auto& Child : Children)
-		{
-			if (Child)
-				Child->UpdateMesh();
-		}
-		return;
-	}
-	else if (IsDirty) {
-		GenerateMeshData();
-	}
-}
-
 void QuadTreeNode::CollectLeaves(TArray<TSharedPtr<QuadTreeNode>>& OutLeafNodes) {
 	if (IsLeaf()) {
 		OutLeafNodes.Add(AsShared());
@@ -226,10 +161,97 @@ void QuadTreeNode::CollectLeaves(TArray<TSharedPtr<QuadTreeNode>>& OutLeafNodes)
 	}
 }
 
+bool QuadTreeNode::CheckNeighbors() {
+	if (!HasGenerated) return false; //Cant do neighbor updates until after base mesh data is generated
+	int myIndex = Index.GetQuadrant();
+	TSharedPtr<QuadTreeNode> n1;
+	TSharedPtr<QuadTreeNode> n2;
+	bool neighborStateChange = false;
+	switch (myIndex) {
+		case (uint8)EChildPosition::BOTTOM_LEFT:
+			n1 = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::LEFT));
+			if (n1) {
+				int d = n1->GetDepth();
+				if (NeighborLods[(uint8)EdgeOrientation::LEFT] != d) {
+					neighborStateChange = true;
+					NeighborLods[(uint8)EdgeOrientation::LEFT] = d;
+				}
+			}
+			n2 = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::UP));
+			if (n2) {
+				int d = n2->GetDepth();
+				//NeighborLods[(uint8)EdgeOrientation::UP] = 0;
+				if (NeighborLods[(uint8)EdgeOrientation::UP] != d) {
+					neighborStateChange = true;
+					NeighborLods[(uint8)EdgeOrientation::UP] = d;
+				}
+			}
+			break;
+		case (uint8)EChildPosition::TOP_LEFT:
+			n1 = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::LEFT));
+			if (n1) {
+				int d = n1->GetDepth();
+				if (NeighborLods[(uint8)EdgeOrientation::LEFT] != d) {
+					neighborStateChange = true;
+					NeighborLods[(uint8)EdgeOrientation::LEFT] = d;
+				}
+			}
+			n2 = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::DOWN));
+			if (n2) {
+				int d = n2->GetDepth();
+				//NeighborLods[(uint8)EdgeOrientation::DOWN] = 0;
+				if (NeighborLods[(uint8)EdgeOrientation::DOWN] != d) {
+					neighborStateChange = true;
+					NeighborLods[(uint8)EdgeOrientation::DOWN] = d;
+				}
+			}
+			break;
+		case (uint8)EChildPosition::BOTTOM_RIGHT:
+			n1 = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::RIGHT));
+			if (n1) {
+				int d = n1->GetDepth();
+				if (NeighborLods[(uint8)EdgeOrientation::RIGHT] != d) {
+					neighborStateChange = true;
+					NeighborLods[(uint8)EdgeOrientation::RIGHT] = d;
+				}
+			}
+			n2 = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::UP));
+			if (n2) {
+				int d = n2->GetDepth();
+				if (NeighborLods[(uint8)EdgeOrientation::UP] != d) {
+					neighborStateChange = true;
+					NeighborLods[(uint8)EdgeOrientation::UP] = d;
+				}
+			}
+			break;
+		case (uint8)EChildPosition::TOP_RIGHT:
+			n1 = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::RIGHT));
+			if (n1) {
+				int d = n1->GetDepth();
+				if (NeighborLods[(uint8)EdgeOrientation::RIGHT] != d) {
+					neighborStateChange = true;
+					NeighborLods[(uint8)EdgeOrientation::RIGHT] = d;
+				}
+			}
+			n2 = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::DOWN));
+			if (n2) {
+				int d = n2->GetDepth();
+				if (NeighborLods[(uint8)EdgeOrientation::DOWN] != d) {
+					neighborStateChange = true;
+					NeighborLods[(uint8)EdgeOrientation::DOWN] = d;
+				}
+			}
+			break;
+	}
+	return neighborStateChange;
+}
+
 void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 {
 	if (!inNode.IsValid() || !inNode->IsLeaf() || inNode->IsRestructuring) return;
 	inNode->IsRestructuring = true;
+	int newDepth = inNode->Index.GetDepth() + 1;
+	//inNode->UpdateNeighborLod(newDepth);
 	//Children laid out according to morton XY ordered indexing
 	FVector2d childOffsets[4] = {
 		FVector2d(-inNode->QuarterSize, -inNode->QuarterSize), // Bottom-left  0b00  0
@@ -245,32 +267,6 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 		childCenter[inNode->FaceTransform.AxisMap[1]] += inNode->FaceTransform.AxisDir[1] * childOffsets[i].Y;
 		inNode->Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(i), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenter, inNode->HalfSize, inNode->SphereRadius));
 		inNode->Children[i]->Parent = inNode.ToWeakPtr();
-
-		int newDepth = inNode->Index.GetDepth() + 1;
-		if (i == 0) {
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::DOWN] = inNode->NeighborLods[(uint8)EdgeOrientation::DOWN];
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::LEFT] = inNode->NeighborLods[(uint8)EdgeOrientation::LEFT];
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::RIGHT] = newDepth;
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::UP] = newDepth;
-		}
-		if (i == 1) {
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::DOWN] = newDepth;
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::LEFT] = inNode->NeighborLods[(uint8)EdgeOrientation::LEFT];
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::RIGHT] = newDepth;
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::UP] = inNode->NeighborLods[(uint8)EdgeOrientation::UP];
-		}
-		if (i == 2) {
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::DOWN] = inNode->NeighborLods[(uint8)EdgeOrientation::DOWN];
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::LEFT] = newDepth;
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::RIGHT] = inNode->NeighborLods[(uint8)EdgeOrientation::RIGHT];
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::UP] = newDepth;
-		}
-		if (i == 3) {
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::DOWN] = newDepth;
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::LEFT] = newDepth;
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::RIGHT] = inNode->NeighborLods[(uint8)EdgeOrientation::RIGHT];
-			inNode->Children[i]->NeighborLods[(uint8)EdgeOrientation::UP] = inNode->NeighborLods[(uint8)EdgeOrientation::UP];
-		}
 	}
 
 	Async(EAsyncExecution::TaskGraphMainThread, [inNode]() {
@@ -298,14 +294,10 @@ void QuadTreeNode::Merge(TSharedPtr<QuadTreeNode> inNode)
 		if (!inNode.IsValid() || inNode->IsLeaf()) {
 			return;
 		}
-		int newLod = inNode->Index.GetDepth();
-		inNode->UpdateNeighborLod(newLod);
 		inNode->SetChunkVisibility(true);
 		for (int i = 0; i < 4; i++) {
-			inNode->Children[i]->UpdateNeighborLod(newLod);
 			inNode->Children[i]->DestroyChunk();
 		}
-
 		inNode->Children.Empty();
 		inNode->IsRestructuring = false;
 		});
@@ -538,6 +530,7 @@ int QuadTreeNode::GenerateVertex(double x, double y, double step, FMeshStreamBui
 }
 
 void QuadTreeNode::UpdateEdgeMesh() {
+
 	float step = (Size) / (float)(ParentActor->FaceResolution - 1);
 	int ModifiedResolution = ParentActor->FaceResolution + 2;
 
@@ -838,7 +831,6 @@ void QuadTreeNode::UpdatePatchMesh() {
 
 void QuadTreeNode::GenerateMeshData2() {
 	if (!IsDirty || !NoiseGen || !IsInitialized) return;
-	IsGenerating = true;
 	IsDirty = false;
 
 	LandVertices.Reset();
@@ -892,7 +884,7 @@ void QuadTreeNode::GenerateMeshData2() {
 
 			TArray<FIndex3UI> TrianglesToAdd;
 
-			if ((x + y) % 2 != 0) {
+			if ((x + y) % 2 == 0) {
 				TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, bottomRight));
 				TrianglesToAdd.Add(FIndex3UI(topLeft, bottomRight, topRight));
 			}
@@ -964,226 +956,10 @@ void QuadTreeNode::GenerateMeshData2() {
 
 	UpdatePatchMesh();
 	UpdateEdgeMesh();
+	HasGenerated = true;
 }
 
 void QuadTreeNode::GenerateMeshData()
 {
 	GenerateMeshData2();
-
-	//if (!IsDirty || !NoiseGen || !IsInitialized) return;
-	//IsDirty = false;
-	//FVector sphereCenter = ParentActor->GetActorLocation();
-	//CenterOnSphere = Center.GetSafeNormal() * SphereRadius;
-
-	//int Resolution = ParentActor->FaceResolution;
-	//int curLodLevel = GetDepth();
-	//float step = (Size) / (float)(Resolution - 1);
-
-	////Land stream builders
-	//auto landBuilders = InitializeStreamBuilders(LandMeshStreamInner, ParentActor->FaceResolution);
-	//auto seaBuilders = InitializeStreamBuilders(SeaMeshStreamInner, ParentActor->FaceResolution);
-
-	//TMap<EdgeOrientation, TArray<int>> EdgeVertexIndexMap;
-	//EdgeVertexIndexMap.Add(EdgeOrientation::LEFT);
-	//EdgeVertexIndexMap.Add(EdgeOrientation::UP);
-	//EdgeVertexIndexMap.Add(EdgeOrientation::RIGHT);
-	//EdgeVertexIndexMap.Add(EdgeOrientation::DOWN);
-
-	////These values track various max/min values found during iteration
-	//double maxDist = 0.0;
-	//LandCentroid = FVector::ZeroVector;
-	//SeaCentroid = FVector::ZeroVector;
-	////SphereCentroid = FVector::ZeroVector;
-	//
-	//MinLandRadius = SphereRadius * 10.0;
-	//MaxLandRadius = 0.0;
-	//MaxNodeRadius = 0.0;
-	//float maxDepth = 0.0f;
-	//
-	//double seaLevel = NoiseGen->GetSeaLevel();
-	//double maxDisplacement = SphereRadius * NoiseGen->GetAmplitudeScale();
-	//double maxLandDisplacement = maxDisplacement * FMath::Abs(NoiseGen->GetMaxBound());
-	//double maxSeaDisplacement = maxDisplacement * FMath::Abs(NoiseGen->GetMinBound());
-	//FVector tSphereCentroid;
-	////First build our regular grid
-	//for (int32 x = 0; x < Resolution; x++) {
-	//	for (int32 y = 0; y < Resolution; y++) {
-	//		int idx = GenerateVertex(x, y, step, landBuilders, seaBuilders);
-	//	}
-	//}
-	////SphereCentroid = SphereCentroid / landBuilders.PositionBuilder->Num();
-	////tSphereCentroid = SphereCentroid;
-
-	////Populate triangles & subdiv
-	//int tResolution = Resolution - 1;
-	//for (int32 x = 0; x < tResolution; x++) {
-	//	for (int32 y = 0; y < tResolution; y++) {
-	//		// Calculate base vertex indices for this quad
-	//		int topLeft = x * ParentActor->FaceResolution + y;
-	//		int topRight = topLeft + 1;
-	//		int bottomLeft = topLeft + ParentActor->FaceResolution;
-	//		int bottomRight = bottomLeft + 1;
-
-	//		// Check which edges need LOD transitions
-	//		bool leftLodChange = x == 0 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::LEFT];
-	//		bool topLodChange = y == 0 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::UP];
-	//		bool rightLodChange = x == tResolution - 1 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::RIGHT];
-	//		bool bottomLodChange = y == tResolution - 1 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::DOWN];
-
-	//		TArray<FIndex3UI> TrianglesToAdd;
-
-	//		//Corner cases
-	//		if (leftLodChange && topLodChange) {
-	//			int leftMidPoint = GenerateVertex(x, y + 0.5, step, landBuilders, seaBuilders);
-	//			int topMidPoint = GenerateVertex(x + 0.5, y, step, landBuilders, seaBuilders);
-	//			// Triangulation for left+top corner
-	//			TrianglesToAdd.Add(FIndex3UI(topMidPoint, bottomLeft, bottomRight));
-	//			TrianglesToAdd.Add(FIndex3UI(topMidPoint, bottomRight, topLeft));
-	//			TrianglesToAdd.Add(FIndex3UI(leftMidPoint, bottomRight, topRight));
-	//			TrianglesToAdd.Add(FIndex3UI(leftMidPoint, topLeft, bottomRight));
-	//		}
-	//		else if (leftLodChange && bottomLodChange) {
-	//			int leftMidPoint = GenerateVertex(x, y + 0.5, step, landBuilders, seaBuilders);
-	//			int bottomMidPoint = GenerateVertex(x + 0.5, y + 1, step, landBuilders, seaBuilders);
-	//			// Triangulation for left+bottom corner
-	//			TrianglesToAdd.Add(FIndex3UI(bottomMidPoint, bottomLeft, bottomRight));
-	//			TrianglesToAdd.Add(FIndex3UI(bottomMidPoint, topRight, bottomLeft));
-	//			TrianglesToAdd.Add(FIndex3UI(leftMidPoint, topLeft, bottomLeft));
-	//			TrianglesToAdd.Add(FIndex3UI(leftMidPoint, bottomLeft, topRight));
-	//		}
-	//		else if (rightLodChange && topLodChange) {
-	//			int rightMidPoint = GenerateVertex(x + 1, y + 0.5, step, landBuilders, seaBuilders);
-	//			int topMidPoint = GenerateVertex(x + 0.5, y, step, landBuilders, seaBuilders);
-	//			// Triangulation for right+top corner
-	//			TrianglesToAdd.Add(FIndex3UI(topMidPoint, topRight, topLeft));
-	//			TrianglesToAdd.Add(FIndex3UI(topMidPoint, bottomLeft, topRight));
-	//			TrianglesToAdd.Add(FIndex3UI(rightMidPoint, bottomRight, topRight));//bugged
-	//			TrianglesToAdd.Add(FIndex3UI(rightMidPoint, topRight, bottomLeft));
-	//		}
-	//		else if (rightLodChange && bottomLodChange) {
-	//			int rightMidPoint = GenerateVertex(x + 1, y + 0.5, step, landBuilders, seaBuilders);
-	//			int bottomMidPoint = GenerateVertex(x + 0.5, y + 1, step, landBuilders, seaBuilders);
-	//			// Triangulation for right+bottom corner
-	//			TrianglesToAdd.Add(FIndex3UI(bottomMidPoint, topRight, topLeft));
-	//			TrianglesToAdd.Add(FIndex3UI(bottomMidPoint, topLeft, bottomRight));
-	//			TrianglesToAdd.Add(FIndex3UI(rightMidPoint, topLeft, bottomLeft));
-	//			TrianglesToAdd.Add(FIndex3UI(rightMidPoint, bottomRight, topLeft));
-	//		}
-	//		//Edge cases
-	//		else if (leftLodChange) {
-	//			int leftMidPoint = GenerateVertex(x, y + 0.5, step, landBuilders, seaBuilders);
-	//			TrianglesToAdd.Add(FIndex3UI(leftMidPoint, topLeft, bottomLeft));
-	//			TrianglesToAdd.Add(FIndex3UI(leftMidPoint, bottomLeft, bottomRight));
-	//			TrianglesToAdd.Add(FIndex3UI(leftMidPoint, bottomRight, topRight));
-	//		}
-	//		else if (rightLodChange) {
-	//			int rightMidPoint = GenerateVertex(x + 1, y + 0.5, step, landBuilders, seaBuilders);
-	//			TrianglesToAdd.Add(FIndex3UI(rightMidPoint, bottomRight, topRight));
-	//			TrianglesToAdd.Add(FIndex3UI(rightMidPoint, topRight, topLeft));
-	//			TrianglesToAdd.Add(FIndex3UI(rightMidPoint, topLeft, bottomLeft));
-	//		}
-	//		else if (topLodChange) {
-	//			int topMidPoint = GenerateVertex(x + 0.5, y, step, landBuilders, seaBuilders);
-	//			TrianglesToAdd.Add(FIndex3UI(topMidPoint, bottomLeft, bottomRight));
-	//			TrianglesToAdd.Add(FIndex3UI(topMidPoint, bottomRight, topRight));
-	//			TrianglesToAdd.Add(FIndex3UI(topMidPoint, topRight, topLeft));
-	//		}
-	//		else if (bottomLodChange) {
-	//			int bottomMidPoint = GenerateVertex(x + 0.5, y + 1, step, landBuilders, seaBuilders);
-	//			TrianglesToAdd.Add(FIndex3UI(bottomMidPoint, bottomLeft, bottomRight));
-	//			TrianglesToAdd.Add(FIndex3UI(bottomMidPoint, topLeft, bottomLeft));
-	//			TrianglesToAdd.Add(FIndex3UI(bottomMidPoint, topRight, topLeft));
-	//		}
-	//		//Base case
-	//		else {
-	//			if ((x+y) % 2 == 0) {
-	//				TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, bottomRight));
-	//				TrianglesToAdd.Add(FIndex3UI(topLeft, bottomRight, topRight));
-	//			}
-	//			else {
-	//				TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, topRight));
-	//				TrianglesToAdd.Add(FIndex3UI(topRight, bottomLeft, bottomRight));
-	//			}
-	//		}
-
-	//		for (FIndex3UI aTriangle : TrianglesToAdd) {
-	//			if (FaceTransform.bFlipWinding) {
-	//				landBuilders.TrianglesBuilder->Add(FIndex3UI(aTriangle.V0, aTriangle.V2, aTriangle.V1));
-	//				seaBuilders.TrianglesBuilder->Add(FIndex3UI(aTriangle.V0, aTriangle.V2, aTriangle.V1));
-	//			}
-	//			else {
-	//				landBuilders.TrianglesBuilder->Add(aTriangle);
-	//				seaBuilders.TrianglesBuilder->Add(aTriangle);
-	//			}
-
-	//			landBuilders.PolygroupsBuilder->Add(0);
-	//			seaBuilders.PolygroupsBuilder->Add(1);
-	//		}
-	//	}
-	//}
-
-	//LandCentroid = LandCentroid / landBuilders.PositionBuilder->Num();
-	//SeaCentroid = SeaCentroid / seaBuilders.PositionBuilder->Num();
-	////SphereCentroid = tSphereCentroid;
-
-	////RealtimeMeshAlgo::GenerateTangents(LandMeshStreamInner, true);
-	////RealtimeMeshAlgo::GenerateTangents(SeaMeshStreamInner, true);
-	//uint32 numPos = (uint32)landBuilders.PositionBuilder->Num();
-	//for (uint32 i = 0; i < numPos; i++)
-	//{
-	//	FVector vertexNormal = FVector::ZeroVector;
-	//	// Calculate the normal by averaging the normals of neighboring triangles
-	//	for (int32 j = 0; j < landBuilders.TrianglesBuilder->Num(); j++)
-	//	{
-	//		auto tri = landBuilders.TrianglesBuilder->Get(j);
-	//		if (tri[0] == i || tri[1] == i || tri[2] == i)
-	//		{
-	//			const FVector& P0 = landBuilders.PositionBuilder->GetValue(tri[0]);
-	//			const FVector& P1 = landBuilders.PositionBuilder->GetValue(tri[1]);
-	//			const FVector& P2 = landBuilders.PositionBuilder->GetValue(tri[2]);
-	//			// Calculate the face normal
-	//			FVector FaceNormal = FVector::CrossProduct(P1 - P0, P2 - P0).GetSafeNormal();
-	//			// Add the face normal to the vertex normal
-	//			vertexNormal += FaceNormal;
-	//		}
-	//	}
-	//	// Normalize the resulting vertex normal
-	//	vertexNormal.Normalize();
-	//	// Assuming 'center' is the center of your sphere or reference point
-	//	FVector referenceVector = (landBuilders.PositionBuilder->GetValue(i) - sphereCenter).GetSafeNormal();
-	//	if (FVector::DotProduct(vertexNormal, referenceVector) < 0)
-	//	{
-	//		vertexNormal *= -1; // Invert the normal
-	//	}
-
-	//	//normals.Add(vertexNormal);
-	//	FRealtimeMeshTangentsHighPrecision tan;
-	//	tan.SetNormal(FVector3f(vertexNormal.X, vertexNormal.Y, vertexNormal.Z));
-	//	landBuilders.TangentBuilder->Add(tan);
-
-	//	//Calculate sea normal and tangent
-	//	FVector seaNormal = (seaBuilders.PositionBuilder->GetValue(i) - sphereCenter).GetSafeNormal();
-	//	FRealtimeMeshTangentsHighPrecision seaTan;
-	//	FVector reference = FVector(0, 0, 1);
-	//	if (FMath::Abs(FVector::DotProduct(seaNormal, reference)) > 0.99f) {
-	//		reference = FVector(0, 1, 0);
-	//	}
-	//	FVector tangent = FVector::CrossProduct(seaNormal, reference).GetSafeNormal();
-	//	seaTan.SetNormal(FVector3f(seaNormal.X, seaNormal.Y, seaNormal.Z));
-	//	seaTan.SetTangent(FVector3f(tangent.X, tangent.Y, tangent.Z));
-	//	seaBuilders.TangentBuilder->Add(seaTan);
-	//}
-
-	/////Async(EAsyncExecution::TaskGraphMainThread, [this]() {
-	//bool alwaysRenderOcean = false;
-	//double seaMeshTolerance = 10.0;
-
-	//RtMesh->UpdateSectionGroup(LandGroupKeyInner, LandMeshStreamInner);
-	//RtMesh->UpdateSectionConfig(LandSectionKeyInner, RtMesh->GetSectionConfig(LandSectionKeyInner), GetDepth() == MaxDepth);
-	//	
-	//if (alwaysRenderOcean || MinLandRadius + seaMeshTolerance <= SeaLevel) {
-	//	RenderSea = true;
-	//	RtMesh->UpdateSectionGroup(SeaGroupKeyInner, SeaMeshStreamInner);
-	//}
-	////});
 }

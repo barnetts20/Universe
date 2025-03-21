@@ -34,12 +34,12 @@ public:
 	
 
 	FRealtimeMeshLODKey LodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
-	FRealtimeMeshSectionGroupKey LandGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, 1);
-	FRealtimeMeshSectionGroupKey SeaGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, 2);
+	FRealtimeMeshSectionGroupKey LandGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, "land_inner");
+	FRealtimeMeshSectionGroupKey SeaGroupKeyInner = FRealtimeMeshSectionGroupKey::Create(LodKey, "sea_inner");
 	FRealtimeMeshSectionKey LandSectionKeyInner = FRealtimeMeshSectionKey::CreateForPolyGroup(LandGroupKeyInner, 0);
 	FRealtimeMeshSectionKey SeaSectionKeyInner = FRealtimeMeshSectionKey::CreateForPolyGroup(SeaGroupKeyInner, 1);
-	FRealtimeMeshSectionGroupKey LandGroupKeyEdge = FRealtimeMeshSectionGroupKey::Create(LodKey, 3);
-	FRealtimeMeshSectionGroupKey SeaGroupKeyEdge = FRealtimeMeshSectionGroupKey::Create(LodKey, 4);
+	FRealtimeMeshSectionGroupKey LandGroupKeyEdge = FRealtimeMeshSectionGroupKey::Create(LodKey, "land_edge");
+	FRealtimeMeshSectionGroupKey SeaGroupKeyEdge = FRealtimeMeshSectionGroupKey::Create(LodKey, "sea_edge");
 	FRealtimeMeshSectionKey LandSectionKeyEdge = FRealtimeMeshSectionKey::CreateForPolyGroup(LandGroupKeyEdge, 0);
 	FRealtimeMeshSectionKey SeaSectionKeyEdge = FRealtimeMeshSectionKey::CreateForPolyGroup(SeaGroupKeyEdge, 1);
 	//Structure modification functions
@@ -74,7 +74,7 @@ public:
 	int GenerateVertex2(double x, double y, double step);
 	int GenerateVertex(double x, double y, double step, FMeshStreamBuilders& landBuilders, FMeshStreamBuilders& seaBuilders);
 	
-	bool IsGenerating = false;
+	bool HasGenerated = false;
 	void UpdatePatchMesh();
 	void UpdateEdgeMesh();
 	void GenerateMeshData2();
@@ -148,7 +148,8 @@ public:
 	void UpdateNeighborLod(int InLod);
 	void UpdateMesh();
 	void LogNeighborLods();
-
+	bool CheckNeighbors();
+	void UpdateNeighbors();
 	bool ShouldSplit(FVector centroid, FVector lastCamPos, double fov, double k);
 
 protected:

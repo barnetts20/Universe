@@ -123,18 +123,9 @@ void APlanetActor::UpdateLOD()
 		ParallelFor(6, [&](int32 i) {
 			RootNodes[i]->UpdateLod();
 		});
-		//ParallelFor(6, [&](int32 i) {
-		//	RootNodes[i]->UpdateNeighborLod();
-		//	});
-		//ParallelFor(6, [&](int32 i) {
-		//	TArray<TSharedPtr<QuadTreeNode>> Leaves;
-		//	RootNodes[i]->CollectLeaves(Leaves);
-		//	for (auto Leaf : Leaves) {
-		//		if (Leaf.IsValid() && Leaf->IsInitialized && Leaf->IsDirty) {
-		//			Leaf->UpdateMesh();
-		//		}
-		//	}
-		//});
+		ParallelFor(6, [&](int32 i) {
+			RootNodes[i]->UpdateNeighbors();
+		});
 	});
 }
 
