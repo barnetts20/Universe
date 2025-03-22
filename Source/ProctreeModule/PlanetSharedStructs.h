@@ -585,4 +585,30 @@ struct PROCTREEMODULE_API FQuadIndex {
 		Result += FString::Printf(TEXT(" (Encoded: 0x%llX)"), EncodedPath);
 		return Result;
 	}
+
+	FString PathToBinary() {
+		uint64 Path = EncodedPath;
+		FString binaryString;
+		int highestBit = 63;
+
+		// Find the highest set bit
+		while (highestBit >= 0 && !(Path & (1ULL << highestBit))) {
+			highestBit--;
+		}
+
+		// Always start from an even bit to maintain pair alignment
+		if (highestBit % 2 == 0) highestBit++;
+
+		// Iterate bits, grouping into pairs
+		for (int i = highestBit; i >= 0; --i) {
+			binaryString += ((Path >> i) & 1ULL) ? "1" : "0";
+
+			// Add space after every 2 bits
+			if (i % 2 == 0) {
+				binaryString += " ";
+			}
+		}
+
+		return binaryString;
+	}
 };
