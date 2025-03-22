@@ -85,17 +85,17 @@ void APlanetActor::InitializePlanet()
 
 	}
 
-	TSharedPtr<INoiseGenerator> NoiseGen0 = MakeShared<MoltenNoiseGenerator>();
+	TSharedPtr<INoiseGenerator> NoiseGen0 = MakeShared<TerrestrialNoiseGenerator>();
 	NoiseGen0->InitializeNode(this->PlanetMeshParameters.seed, NoiseAmplitude, NoiseFrequency, SeaLevel);
-	TSharedPtr<INoiseGenerator> NoiseGen1 = MakeShared<MoltenNoiseGenerator>();
+	TSharedPtr<INoiseGenerator> NoiseGen1 = MakeShared<TerrestrialNoiseGenerator>();
 	NoiseGen1->InitializeNode(this->PlanetMeshParameters.seed, NoiseAmplitude, NoiseFrequency, SeaLevel);
-	TSharedPtr<INoiseGenerator> NoiseGen2 = MakeShared<MoltenNoiseGenerator>();
+	TSharedPtr<INoiseGenerator> NoiseGen2 = MakeShared<TerrestrialNoiseGenerator>();
 	NoiseGen2->InitializeNode(this->PlanetMeshParameters.seed, NoiseAmplitude, NoiseFrequency, SeaLevel);
-	TSharedPtr<INoiseGenerator> NoiseGen3 = MakeShared<MoltenNoiseGenerator>();
+	TSharedPtr<INoiseGenerator> NoiseGen3 = MakeShared<TerrestrialNoiseGenerator>();
 	NoiseGen3->InitializeNode(this->PlanetMeshParameters.seed, NoiseAmplitude, NoiseFrequency, SeaLevel);
-	TSharedPtr<INoiseGenerator> NoiseGen4 = MakeShared<MoltenNoiseGenerator>();
+	TSharedPtr<INoiseGenerator> NoiseGen4 = MakeShared<TerrestrialNoiseGenerator>();
 	NoiseGen4->InitializeNode(this->PlanetMeshParameters.seed, NoiseAmplitude, NoiseFrequency, SeaLevel);
-	TSharedPtr<INoiseGenerator> NoiseGen5 = MakeShared<MoltenNoiseGenerator>();
+	TSharedPtr<INoiseGenerator> NoiseGen5 = MakeShared<TerrestrialNoiseGenerator>();
 	NoiseGen5->InitializeNode(this->PlanetMeshParameters.seed, NoiseAmplitude, NoiseFrequency, SeaLevel);
 
 	double size = 1000.0;
@@ -114,13 +114,12 @@ void APlanetActor::InitializePlanet()
 	}
 
 	this->IsInitialized = true;
-	ScheduleDataUpdate(.1);
+	ScheduleDataUpdate(.2);
 }
 
 void APlanetActor::UpdateLOD()
 {
 	Async(EAsyncExecution::LargeThreadPool, [this]() {
-		TArray<TSharedPtr<QuadTreeNode>> leaves;
 		ParallelFor(6, [&](int32 i) {
 			RootNodes[i]->UpdateLod();
 		});
