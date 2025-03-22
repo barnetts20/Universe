@@ -69,6 +69,7 @@ public:
 	double MaxLandRadius;
 
 	//Mesh State Data
+	int FaceResolution;
 	TArray<FVector> LandVertices;
 	TArray<FVector3f> LandNormals;
 	TArray<FColor> LandColors;
