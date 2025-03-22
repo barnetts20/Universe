@@ -112,7 +112,7 @@ public:
 	//Data checks, leaf collection
 	bool IsLeaf() const;
 	int GetDepth() const; //This also represents the current LOD level
-	void CollectLeaves(TArray<TSharedPtr<QuadTreeNode>>& LeafNodes);
+	static void CollectLeaves(TSharedPtr<QuadTreeNode> InNode, TArray<TSharedPtr<QuadTreeNode>>& LeafNodes);
 
 	//Chunk lifecycle
 	void InitializeChunk();

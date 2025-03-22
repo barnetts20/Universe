@@ -59,7 +59,7 @@ void QuadTreeNode::RecurseUpdateLod(TWeakPtr<QuadTreeNode> InNode) {
 
 void QuadTreeNode::UpdateNeighbors() {
 	TArray<TSharedPtr<QuadTreeNode>> leaves;
-	CollectLeaves(leaves);
+	CollectLeaves(AsShared(), leaves);
 
 	TArray<TSharedPtr<QuadTreeNode>> updateLeaves;
 	for (auto aLeaf : leaves) {
@@ -305,13 +305,13 @@ int QuadTreeNode::GetDepth() const
 	return Index.GetDepth();
 }
 
-void QuadTreeNode::CollectLeaves(TArray<TSharedPtr<QuadTreeNode>>& OutLeafNodes) {
-	if (IsLeaf()) {
-		OutLeafNodes.Add(AsShared());
+void QuadTreeNode::CollectLeaves(TSharedPtr<QuadTreeNode> InNode, TArray<TSharedPtr<QuadTreeNode>>& OutLeafNodes) {
+	if (InNode->IsLeaf()) {
+		OutLeafNodes.Add(InNode->AsShared());
 	}
 	else {
-		for (const auto& Child : Children) {
-			Child->CollectLeaves(OutLeafNodes);
+		for (const auto& Child : InNode->Children) {
+			QuadTreeNode::CollectLeaves(Child, OutLeafNodes);
 		}
 	}
 }
@@ -479,6 +479,9 @@ int QuadTreeNode::GenerateVertex(double x, double y, double step) {
 
 //Update the edge mesh buffers
 void QuadTreeNode::UpdateEdgeMesh() {
+	if (!HasGenerated) return;
+
+	FWriteScopeLock WriteLock(MeshDataLock);
 	float step = (Size) / (float)(ParentActor->FaceResolution - 1);
 	int ModifiedResolution = ParentActor->FaceResolution + 2;
 
@@ -712,12 +715,17 @@ void QuadTreeNode::UpdateEdgeMesh() {
 		seaEdgeBuilders.TrianglesBuilder->Add(FIndex3UI(sv0, sv1, sv2));
 		seaEdgeBuilders.PolygroupsBuilder->Add(1);
 	}
-	RtMesh->UpdateSectionGroup(LandGroupKeyEdge, LandMeshStreamEdge);
-	RtMesh->UpdateSectionConfig(LandSectionKeyEdge, RtMesh->GetSectionConfig(LandSectionKeyEdge), GetDepth() >= MaxDepth - 3);
+
+	//AsyncTask(ENamedThreads::GameThread, [this]() {
+		RtMesh->UpdateSectionGroup(LandGroupKeyEdge, LandMeshStreamEdge);
+		RtMesh->UpdateSectionConfig(LandSectionKeyEdge, RtMesh->GetSectionConfig(LandSectionKeyEdge), GetDepth() >= MaxDepth - 3);
+	//});
 }
 
 //Update the patch mesh buffers
 void QuadTreeNode::UpdatePatchMesh() {
+	if (!HasGenerated) return;
+	FReadScopeLock ReadLock(MeshDataLock);
 	auto landBuilders = InitializeStreamBuilders(LandMeshStreamInner, ParentActor->FaceResolution);
 	auto seaBuilders = InitializeStreamBuilders(SeaMeshStreamInner, ParentActor->FaceResolution);
 
@@ -775,132 +783,136 @@ void QuadTreeNode::UpdatePatchMesh() {
 		seaBuilders.PolygroupsBuilder->Add(0);
 	}
 
-	RtMesh->UpdateSectionGroup(LandGroupKeyInner, LandMeshStreamInner);
-	RtMesh->UpdateSectionConfig(LandSectionKeyInner, RtMesh->GetSectionConfig(LandSectionKeyInner), GetDepth() >= MaxDepth - 3);
+	//AsyncTask(ENamedThreads::GameThread, [this]() {
+		RtMesh->UpdateSectionGroup(LandGroupKeyInner, LandMeshStreamInner);
+		RtMesh->UpdateSectionConfig(LandSectionKeyInner, RtMesh->GetSectionConfig(LandSectionKeyInner), GetDepth() >= MaxDepth - 3);
+	//});
 }
 
 //Generate the base internal mesh data
 void QuadTreeNode::GenerateMeshData() {
 	if (!NoiseGen || !IsInitialized) return;
+	{
+		FWriteScopeLock WriteLock(MeshDataLock);
+		LandVertices.Reset();
+		SeaVertices.Reset();
+		LandNormals.Reset();
+		SeaNormals.Reset();
+		LandColors.Reset();
+		SeaColors.Reset();
+		TexCoords.Reset();
+		AllTriangles.Reset();
+		PatchTriangleIndices.Reset();
 
-	LandVertices.Reset();
-	SeaVertices.Reset();
-	LandNormals.Reset();
-	SeaNormals.Reset();
-	LandColors.Reset();
-	SeaColors.Reset();
-	TexCoords.Reset();
-	AllTriangles.Reset();
-	PatchTriangleIndices.Reset();
+		FVector sphereCenter = ParentActor->GetActorLocation();
+		CenterOnSphere = Center.GetSafeNormal() * SphereRadius;
 
-	FVector sphereCenter = ParentActor->GetActorLocation();
-	CenterOnSphere = Center.GetSafeNormal() * SphereRadius;
+		float step = (Size) / (float)(ParentActor->FaceResolution - 1);
+		int ModifiedResolution = ParentActor->FaceResolution + 2;
+		int curLodLevel = GetDepth();
 
-	float step = (Size) / (float)(ParentActor->FaceResolution - 1);
-	int ModifiedResolution = ParentActor->FaceResolution + 2;
-	int curLodLevel = GetDepth();
+		LandCentroid = FVector::ZeroVector;
+		SeaCentroid = FVector::ZeroVector;
+		MinLandRadius = SphereRadius * 10.0;
+		MaxLandRadius = 0.0;
+		MaxNodeRadius = 0.0;
 
-	LandCentroid = FVector::ZeroVector;
-	SeaCentroid = FVector::ZeroVector;
-	MinLandRadius = SphereRadius * 10.0;
-	MaxLandRadius = 0.0;
-	MaxNodeRadius = 0.0;
-
-	for (int32 x = 0; x < ModifiedResolution; x++) {
-		for (int32 y = 0; y < ModifiedResolution; y++) {
-			int idx = GenerateVertex(x - 1, y - 1, step);
+		for (int32 x = 0; x < ModifiedResolution; x++) {
+			for (int32 y = 0; y < ModifiedResolution; y++) {
+				int idx = GenerateVertex(x - 1, y - 1, step);
+			}
 		}
-	}
 
-	//Populate triangles & subdiv
-	int tResolution = ModifiedResolution - 1;
-	for (int32 x = 0; x < tResolution; x++) {
-		for (int32 y = 0; y < tResolution; y++) {
-			// Calculate base vertex indices for this quad
-			int topLeft = x * ModifiedResolution + y;
-			int topRight = topLeft + 1;
-			int bottomLeft = topLeft + ModifiedResolution;
-			int bottomRight = bottomLeft + 1;
+		//Populate triangles & subdiv
+		int tResolution = ModifiedResolution - 1;
+		for (int32 x = 0; x < tResolution; x++) {
+			for (int32 y = 0; y < tResolution; y++) {
+				// Calculate base vertex indices for this quad
+				int topLeft = x * ModifiedResolution + y;
+				int topRight = topLeft + 1;
+				int bottomLeft = topLeft + ModifiedResolution;
+				int bottomRight = bottomLeft + 1;
 
-			// Check which edges need LOD transitions
-			bool isVirtual = x == 0 || y == 0 || x == tResolution - 1 || y == tResolution - 1;
-			bool isEdge = x == 1 || y == 1 || x == tResolution - 2 || y == tResolution - 2;
+				// Check which edges need LOD transitions
+				bool isVirtual = x == 0 || y == 0 || x == tResolution - 1 || y == tResolution - 1;
+				bool isEdge = x == 1 || y == 1 || x == tResolution - 2 || y == tResolution - 2;
 
-			bool leftLodChange = x == 1 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::LEFT];
-			bool topLodChange = y == 1 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::UP];
-			bool rightLodChange = x == tResolution - 2 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::RIGHT];
-			bool bottomLodChange = y == tResolution - 2 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::DOWN];
+				bool leftLodChange = x == 1 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::LEFT];
+				bool topLodChange = y == 1 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::UP];
+				bool rightLodChange = x == tResolution - 2 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::RIGHT];
+				bool bottomLodChange = y == tResolution - 2 && Index.GetDepth() < NeighborLods[(uint8)EdgeOrientation::DOWN];
 
-			TArray<FIndex3UI> TrianglesToAdd;
+				TArray<FIndex3UI> TrianglesToAdd;
 
-			if ((x + y) % 2 == 0) {
-				TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, bottomRight));
-				TrianglesToAdd.Add(FIndex3UI(topLeft, bottomRight, topRight));
-			}
-			else {
-				TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, topRight));
-				TrianglesToAdd.Add(FIndex3UI(topRight, bottomLeft, bottomRight));
-			}
-
-			for (FIndex3UI aTriangle : TrianglesToAdd) {
-				int addedIdx = -1;
-				if (FaceTransform.bFlipWinding) {
-					addedIdx = AllTriangles.Add(FIndex3UI(aTriangle.V0, aTriangle.V2, aTriangle.V1));
+				if ((x + y) % 2 == 0) {
+					TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, bottomRight));
+					TrianglesToAdd.Add(FIndex3UI(topLeft, bottomRight, topRight));
 				}
 				else {
-					addedIdx = AllTriangles.Add(aTriangle);
+					TrianglesToAdd.Add(FIndex3UI(topLeft, bottomLeft, topRight));
+					TrianglesToAdd.Add(FIndex3UI(topRight, bottomLeft, bottomRight));
 				}
 
-				if (!isVirtual && !isEdge) {
-					PatchTriangleIndices.Add(addedIdx);
+				for (FIndex3UI aTriangle : TrianglesToAdd) {
+					int addedIdx = -1;
+					if (FaceTransform.bFlipWinding) {
+						addedIdx = AllTriangles.Add(FIndex3UI(aTriangle.V0, aTriangle.V2, aTriangle.V1));
+					}
+					else {
+						addedIdx = AllTriangles.Add(aTriangle);
+					}
+
+					if (!isVirtual && !isEdge) {
+						PatchTriangleIndices.Add(addedIdx);
+					}
 				}
 			}
 		}
-	}
 
-	LandCentroid = LandCentroid / LandVertices.Num();
-	SeaCentroid = SeaCentroid / SeaVertices.Num();
+		LandCentroid = LandCentroid / LandVertices.Num();
+		SeaCentroid = SeaCentroid / SeaVertices.Num();
 
-	uint32 numPos = (uint32)LandVertices.Num();
-	for (uint32 i = 0; i < numPos; i++)
-	{
-		FVector vertexNormal = FVector::ZeroVector;
-		// Calculate the normal by averaging the normals of neighboring triangles
-		for (int32 j = 0; j < AllTriangles.Num(); j++)
+		uint32 numPos = (uint32)LandVertices.Num();
+		for (uint32 i = 0; i < numPos; i++)
 		{
-			auto tri = AllTriangles[j];
-			if (tri[0] == i || tri[1] == i || tri[2] == i)
+			FVector vertexNormal = FVector::ZeroVector;
+			// Calculate the normal by averaging the normals of neighboring triangles
+			for (int32 j = 0; j < AllTriangles.Num(); j++)
 			{
-				const FVector& P0 = LandVertices[tri[0]];
-				const FVector& P1 = LandVertices[tri[1]];
-				const FVector& P2 = LandVertices[tri[2]];
-				// Calculate the face normal
-				FVector FaceNormal = FVector::CrossProduct(P1 - P0, P2 - P0).GetSafeNormal();
-				// Add the face normal to the vertex normal
-				vertexNormal += FaceNormal;
+				auto tri = AllTriangles[j];
+				if (tri[0] == i || tri[1] == i || tri[2] == i)
+				{
+					const FVector& P0 = LandVertices[tri[0]];
+					const FVector& P1 = LandVertices[tri[1]];
+					const FVector& P2 = LandVertices[tri[2]];
+					// Calculate the face normal
+					FVector FaceNormal = FVector::CrossProduct(P1 - P0, P2 - P0).GetSafeNormal();
+					// Add the face normal to the vertex normal
+					vertexNormal += FaceNormal;
+				}
 			}
-		}
-		// Normalize the resulting vertex normal
-		vertexNormal;
-		// Assuming 'center' is the center of your sphere or reference point
-		FVector referenceVector = (LandVertices[i] - sphereCenter).GetSafeNormal();
-		if (FVector::DotProduct(vertexNormal, referenceVector) < 0)
-		{
-			vertexNormal *= -1; // Invert the normal
+			// Normalize the resulting vertex normal
+			vertexNormal;
+			// Assuming 'center' is the center of your sphere or reference point
+			FVector referenceVector = (LandVertices[i] - sphereCenter).GetSafeNormal();
+			if (FVector::DotProduct(vertexNormal, referenceVector) < 0)
+			{
+				vertexNormal *= -1; // Invert the normal
+			}
+
+			//normals.Add(vertexNormal);
+			LandNormals.Add((FVector3f)vertexNormal.GetSafeNormal());
+
+			//Calculate sea normal
+			FVector seaNormal = (SeaVertices[i] - sphereCenter).GetSafeNormal();
+			SeaNormals.Add((FVector3f)seaNormal);
 		}
 
-		//normals.Add(vertexNormal);
-		LandNormals.Add((FVector3f)vertexNormal.GetSafeNormal());
-
-		//Calculate sea normal
-		FVector seaNormal = (SeaVertices[i] - sphereCenter).GetSafeNormal();
-		SeaNormals.Add((FVector3f)seaNormal);
+		bool alwaysRenderOcean = false;
+		double seaMeshTolerance = 10.0;
+	
+		HasGenerated = true;
 	}
-
-	bool alwaysRenderOcean = false;
-	double seaMeshTolerance = 10.0;
-
 	UpdatePatchMesh();
 	UpdateEdgeMesh();
-	HasGenerated = true;
 }

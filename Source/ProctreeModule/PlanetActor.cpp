@@ -13,6 +13,7 @@ APlanetActor::APlanetActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+	MaxNodeDepth = 4;
 //	InitializeFaceTransforms();
 }
 
