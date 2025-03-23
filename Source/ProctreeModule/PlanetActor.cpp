@@ -114,7 +114,8 @@ void APlanetActor::InitializePlanet()
 	}
 
 	this->IsInitialized = true;
-	ScheduleDataUpdate(.2);
+	ScheduleDataUpdate(.1);
+	ScheduleMeshUpdate(.15);
 }
 
 void APlanetActor::UpdateLOD()
@@ -129,6 +130,16 @@ void APlanetActor::UpdateLOD()
 	});
 }
 
+void APlanetActor::UpdateMesh()
+{
+	//ParallelFor(6, [&](int32 i) {
+	Async(EAsyncExecution::TaskGraphMainThread, [this]() {
+		for (int i = 0; i < 6; i++) {
+			RootNodes[i]->UpdateAllMesh();
+		}
+	});
+	//});
+}
 TSharedPtr<QuadTreeNode> APlanetActor::GetNodeByIndex(const FQuadIndex& Index) const
 {
 	// Get the root node for the specified face
@@ -296,6 +307,7 @@ void APlanetActor::ScheduleDataUpdate(float IntervalInSeconds)
 				//**********BEGIN IMPLEMENTATION BLOCK***************
 				//**********BEGIN IMPLEMENTATION BLOCK***************
 				{
+					FWriteScopeLock WriteLock(xPosLock);
 					if (IsDestroyed) return;
 					UpdateLOD();
 				}
@@ -314,6 +326,35 @@ void APlanetActor::ScheduleDataUpdate(float IntervalInSeconds)
 }
 
 
+void APlanetActor::ScheduleMeshUpdate(float IntervalInSeconds)
+{
+	if (!IsMeshUpdateRunning && !IsDestroyed)
+	{
+		IsMeshUpdateRunning = true;
+
+		FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady([this, IntervalInSeconds]()
+			{
+				//**********BEGIN IMPLEMENTATION BLOCK***************
+				//**********BEGIN IMPLEMENTATION BLOCK***************
+				//**********BEGIN IMPLEMENTATION BLOCK***************
+				{
+					FWriteScopeLock WriteLock(xPosLock);
+					if (IsDestroyed) return;
+					UpdateMesh();
+				}
+				//***********END IMPLEMENTATION BLOCK***************
+				//***********END IMPLEMENTATION BLOCK***************
+				//***********END IMPLEMENTATION BLOCK***************
+
+				IsMeshUpdateRunning = false;
+				FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this, IntervalInSeconds](float DeltaTime)
+					{
+						ScheduleMeshUpdate(IntervalInSeconds);
+						return false;
+					}), IntervalInSeconds);
+			}, TStatId(), nullptr, ENamedThreads::AnyBackgroundThreadNormalTask);
+	}
+}
 
 TFuture<URealtimeMeshComponent*> APlanetActor::CreateRealtimeMeshComponentAsync()
 {

@@ -108,9 +108,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Planet Config")
 	FVector GetCameraOverridePosition();
+	void ScheduleMeshUpdate(float IntervalInSeconds);
 	TFuture<URealtimeMeshComponent*> CreateRealtimeMeshComponentAsync();
 	//Root nodes for each face
 	TSharedPtr<QuadTreeNode> RootNodes[6];
+
+	void UpdateMesh();
 
 	TSharedPtr<QuadTreeNode> GetNodeByIndex(const FQuadIndex& Index) const;
 	TSharedPtr<QuadTreeNode> GetLeafNodeByIndex(const FQuadIndex& Index) const;
@@ -120,6 +123,7 @@ protected:
 	virtual void TickActor(float DeltaTime, ELevelTick TickType, FActorTickFunction& ThisTickFunction) override;
 	bool IsDestroyed = false;
 	bool IsDataUpdateRunning = false;
+	bool IsMeshUpdateRunning = false;
 	void ScheduleDataUpdate(float IntervalInSeconds);
 
 	virtual bool ShouldTickIfViewportsOnly() const override;

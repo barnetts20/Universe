@@ -126,10 +126,14 @@ public:
 	FVector GetFacePoint(float step, double x, double y);
 	int GenerateVertex(double x, double y, double step);
 
-	void UpdateEdgeMesh();
-	void UpdatePatchMesh();
+	bool isPatchDirty = false;
+	bool isEdgeDirty = false;
+
+	void UpdateEdgeMeshBuffer();
+	void UpdatePatchMeshBuffer();
 	void GenerateMeshData();
-	
+	void UpdateMesh(); 
+	void UpdateAllMesh();
 protected:
 	FRWLock MeshDataLock;
 	void RecurseRemoveChildren(TSharedPtr<QuadTreeNode> InNode);

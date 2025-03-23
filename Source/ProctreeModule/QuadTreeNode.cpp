@@ -27,7 +27,11 @@ QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerat
 	LodKey = FRealtimeMeshLODKey::FRealtimeMeshLODKey(0);
 
 	SeaLevel = InRadius;
+
 	int myDepth = Index.GetDepth();
+	
+	FaceResolution = ParentActor->FaceResolution;
+
 	NeighborLods[0] = myDepth;
 	NeighborLods[1] = myDepth;
 	NeighborLods[2] = myDepth;
@@ -69,7 +73,16 @@ void QuadTreeNode::UpdateNeighbors() {
 	}
 
 	for (auto aLeaf : updateLeaves) {
-		aLeaf->UpdateEdgeMesh();
+		aLeaf->UpdateEdgeMeshBuffer();
+	}
+}
+
+
+void QuadTreeNode::UpdateAllMesh() {
+	TArray<TSharedPtr<QuadTreeNode>> leaves;
+	CollectLeaves(AsShared(), leaves);	
+	for (auto aLeaf : leaves) {
+		aLeaf->UpdateMesh();
 	}
 }
 
@@ -287,12 +300,9 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 			for (int i = 0; i < 4; i++) {
 				inNode->Children[i]->GenerateMeshData();
 			}
-			Async(EAsyncExecution::TaskGraphMainThread, [inNode]() {
-				inNode->SetChunkVisibility(false);
-				}).Wait();
-				inNode->IsRestructuring = false;
-			});
+			inNode->IsRestructuring = false;
 		});
+	});
 }
 
 bool QuadTreeNode::IsLeaf() const
@@ -478,7 +488,7 @@ int QuadTreeNode::GenerateVertex(double x, double y, double step) {
 }
 
 //Update the edge mesh buffers
-void QuadTreeNode::UpdateEdgeMesh() {
+void QuadTreeNode::UpdateEdgeMeshBuffer() {
 	if (!HasGenerated) return;
 
 	FWriteScopeLock WriteLock(MeshDataLock);
@@ -715,15 +725,11 @@ void QuadTreeNode::UpdateEdgeMesh() {
 		seaEdgeBuilders.TrianglesBuilder->Add(FIndex3UI(sv0, sv1, sv2));
 		seaEdgeBuilders.PolygroupsBuilder->Add(1);
 	}
-
-	//AsyncTask(ENamedThreads::GameThread, [this]() {
-		RtMesh->UpdateSectionGroup(LandGroupKeyEdge, LandMeshStreamEdge);
-		RtMesh->UpdateSectionConfig(LandSectionKeyEdge, RtMesh->GetSectionConfig(LandSectionKeyEdge), GetDepth() >= MaxDepth - 3);
-	//});
+	isEdgeDirty = true;
 }
 
 //Update the patch mesh buffers
-void QuadTreeNode::UpdatePatchMesh() {
+void QuadTreeNode::UpdatePatchMeshBuffer() {
 	if (!HasGenerated) return;
 	FReadScopeLock ReadLock(MeshDataLock);
 	auto landBuilders = InitializeStreamBuilders(LandMeshStreamInner, ParentActor->FaceResolution);
@@ -782,11 +788,7 @@ void QuadTreeNode::UpdatePatchMesh() {
 		seaBuilders.TrianglesBuilder->Add(newSeaTri);
 		seaBuilders.PolygroupsBuilder->Add(0);
 	}
-
-	//AsyncTask(ENamedThreads::GameThread, [this]() {
-		RtMesh->UpdateSectionGroup(LandGroupKeyInner, LandMeshStreamInner);
-		RtMesh->UpdateSectionConfig(LandSectionKeyInner, RtMesh->GetSectionConfig(LandSectionKeyInner), GetDepth() >= MaxDepth - 3);
-	//});
+	isPatchDirty = true;
 }
 
 //Generate the base internal mesh data
@@ -913,6 +915,33 @@ void QuadTreeNode::GenerateMeshData() {
 	
 		HasGenerated = true;
 	}
-	UpdatePatchMesh();
-	UpdateEdgeMesh();
+	UpdatePatchMeshBuffer();
+	UpdateEdgeMeshBuffer();
+}
+
+void QuadTreeNode::UpdateMesh() {
+	FWriteScopeLock WriteLock(MeshDataLock);
+	if (!IsInitialized || !HasGenerated) return;
+
+		if (isEdgeDirty) {
+			isEdgeDirty = false;
+			auto UpdateStream = FRealtimeMeshStreamSet(LandMeshStreamEdge);
+			RtMesh->UpdateSectionGroup(LandGroupKeyEdge, UpdateStream);
+			RtMesh->UpdateSectionConfig(LandSectionKeyEdge, RtMesh->GetSectionConfig(LandSectionKeyEdge), GetDepth() >= MaxDepth - 3);
+		}
+		if (isPatchDirty) {
+			isPatchDirty = false;
+			auto UpdateStream = FRealtimeMeshStreamSet(LandMeshStreamInner);
+			RtMesh->UpdateSectionGroup(LandGroupKeyInner, UpdateStream);
+			RtMesh->UpdateSectionConfig(LandSectionKeyInner, RtMesh->GetSectionConfig(LandSectionKeyInner), GetDepth() >= MaxDepth - 3);
+			if (Index.GetQuadrant() == 3) {
+				if (Parent.IsValid()) {
+					TSharedPtr<QuadTreeNode> tParent = Parent.Pin();
+					tParent->SetChunkVisibility(false);
+				}
+			}
+		}
+	//AsyncTask(ENamedThreads::GameThread, [this]() {
+
+	//});
 }
