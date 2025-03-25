@@ -316,12 +316,41 @@ int QuadTreeNode::GetDepth() const
 }
 
 void QuadTreeNode::CollectLeaves(TSharedPtr<QuadTreeNode> InNode, TArray<TSharedPtr<QuadTreeNode>>& OutLeafNodes) {
-	if (InNode->IsLeaf()) {
-		OutLeafNodes.Add(InNode->AsShared());
+	// Skip invalid nodes
+	if (!InNode.IsValid()) {
+		return;
 	}
-	else {
-		for (const auto& Child : InNode->Children) {
-			QuadTreeNode::CollectLeaves(Child, OutLeafNodes);
+
+	// Lock the entire subtree at the root level
+	FReadScopeLock ReadLock(InNode->MeshDataLock);
+
+	// Create a stack for traversal
+	TArray<TSharedPtr<QuadTreeNode>> nodeStack;
+
+	// Start with the input node
+	nodeStack.Push(InNode);
+
+	// Process nodes until stack is empty
+	while (nodeStack.Num() > 0) {
+		// Pop the top node from the stack
+		TSharedPtr<QuadTreeNode> currentNode = nodeStack.Pop();
+
+		// Skip invalid nodes (shouldn't happen with lock, but for safety)
+		if (!currentNode.IsValid()) {
+			continue;
+		}
+
+		// If it's a leaf node, add it to our collection
+		if (currentNode->IsLeaf()) {
+			OutLeafNodes.Add(currentNode);
+			continue;
+		}
+
+		// Add all valid children to the stack (in reverse order for proper depth-first traversal)
+		for (int i = currentNode->Children.Num() - 1; i >= 0; --i) {
+			if (currentNode->Children[i].IsValid()) {
+				nodeStack.Add(currentNode->Children[i]);
+			}
 		}
 	}
 }
