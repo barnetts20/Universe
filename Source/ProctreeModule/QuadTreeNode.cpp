@@ -45,19 +45,47 @@ QuadTreeNode::~QuadTreeNode()
 
 void QuadTreeNode::UpdateLod()
 {
-	RecurseUpdateLod(AsShared());
-}
+	// Lock the entire subtree at the root level
+	FReadScopeLock ReadLock(MeshDataLock);
 
-void QuadTreeNode::RecurseUpdateLod(TWeakPtr<QuadTreeNode> InNode) {
-	if (!InNode.IsValid()) {
-		return;
-	}
-	TSharedPtr<QuadTreeNode> tNode = InNode.Pin();
-	if (tNode->IsInitialized) {
-		for (int i = 0; i < tNode->Children.Num(); i++) {
-			RecurseUpdateLod(tNode->Children[i]);
+	// Create a stack for traversal
+	TArray<TSharedPtr<QuadTreeNode>> nodeStack;
+
+	// Start with the current node
+	nodeStack.Push(AsShared());
+
+	// First pass: collect all nodes in post-order (children before parents)
+	TArray<TSharedPtr<QuadTreeNode>> processOrder;
+	TSet<TSharedPtr<QuadTreeNode>> visitedNodes;
+
+	while (nodeStack.Num() > 0) {
+		TSharedPtr<QuadTreeNode> currentNode = nodeStack.Last(); // Peek at the top
+
+		bool allChildrenProcessed = true;
+
+		// Check if all children have been visited
+		if (currentNode->IsInitialized && !currentNode->IsLeaf()) {
+			for (int i = currentNode->Children.Num() - 1; i >= 0; --i) {
+				if (currentNode->Children[i].IsValid() && !visitedNodes.Contains(currentNode->Children[i])) {
+					nodeStack.Push(currentNode->Children[i]);
+					allChildrenProcessed = false;
+				}
+			}
 		}
-		tNode->TrySetLod();
+
+		// If all children are processed or node is a leaf, add to process order
+		if (allChildrenProcessed) {
+			nodeStack.Pop(); // Actually remove from stack now
+			processOrder.Add(currentNode);
+			visitedNodes.Add(currentNode);
+		}
+	}
+
+	// Second pass: process the nodes in the collected order (children before parents)
+	for (const auto& node : processOrder) {
+		if (node.IsValid() && node->IsInitialized) {
+			node->TrySetLod();
+		}
 	}
 }
 
@@ -68,12 +96,8 @@ void QuadTreeNode::UpdateNeighbors() {
 	TArray<TSharedPtr<QuadTreeNode>> updateLeaves;
 	for (auto aLeaf : leaves) {
 		if (aLeaf->CheckNeighbors()) {
-			updateLeaves.Add(aLeaf);
+			aLeaf->UpdateEdgeMeshBuffer();
 		}
-	}
-
-	for (auto aLeaf : updateLeaves) {
-		aLeaf->UpdateEdgeMeshBuffer();
 	}
 }
 
