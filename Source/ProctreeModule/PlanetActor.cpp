@@ -133,11 +133,11 @@ void APlanetActor::UpdateLOD()
 void APlanetActor::UpdateMesh()
 {
 	//ParallelFor(6, [&](int32 i) {
-	Async(EAsyncExecution::TaskGraphMainThread, [this]() {
+	//Async(EAsyncExecution::TaskGraphMainThread, [this]() {
 		for (int i = 0; i < 6; i++) {
 			RootNodes[i]->UpdateAllMesh();
 		}
-	});
+	//});
 	//});
 }
 TSharedPtr<QuadTreeNode> APlanetActor::GetNodeByIndex(const FQuadIndex& Index) const

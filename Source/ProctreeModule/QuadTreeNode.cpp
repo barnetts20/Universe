@@ -101,8 +101,8 @@ void QuadTreeNode::UpdateNeighbors() {
 	}
 }
 
-
 void QuadTreeNode::UpdateAllMesh() {
+
 	TArray<TSharedPtr<QuadTreeNode>> leaves;
 	CollectLeaves(AsShared(), leaves);	
 	for (auto aLeaf : leaves) {
@@ -129,7 +129,6 @@ bool QuadTreeNode::CheckNeighbors() {
 		n2 = ParentActor->GetNodeByIndex(Index.GetNeighborIndex(EdgeOrientation::UP));
 		if (n2) {
 			int d = n2->GetDepth();
-			//NeighborLods[(uint8)EdgeOrientation::UP] = 0;
 			if (NeighborLods[(uint8)EdgeOrientation::UP] != d) {
 				neighborStateChange = true;
 				NeighborLods[(uint8)EdgeOrientation::UP] = d;
@@ -269,20 +268,58 @@ void QuadTreeNode::Merge(TSharedPtr<QuadTreeNode> inNode)
 		for (int i = 0; i < 4; i++) {
 			inNode->Children[i]->DestroyChunk();
 		}
-		inNode->Children.Empty();
+		inNode->RemoveChildren(inNode->AsShared());
 		inNode->IsRestructuring = false;
-		});
+	});
 }
 
-void QuadTreeNode::RecurseRemoveChildren(TSharedPtr<QuadTreeNode> InNode)
+void QuadTreeNode::RemoveChildren(TSharedPtr<QuadTreeNode> InNode)
 {
-	for (TSharedPtr<QuadTreeNode> child : InNode->Children) {
-		child->DestroyChunk();
-		if (!child->IsLeaf())
-		{
-			child->RecurseRemoveChildren(child);
+	if (!InNode.IsValid()) {
+		return;
+	}
+
+	// Create a stack for traversal
+	TArray<TSharedPtr<QuadTreeNode>> nodeStack;
+
+	// First, collect all nodes in post-order (children before parents)
+	// This ensures we process child nodes before parent nodes
+	TArray<TSharedPtr<QuadTreeNode>> processOrder;
+	nodeStack.Push(InNode);
+	TSet<TSharedPtr<QuadTreeNode>> visitedNodes;
+
+	while (nodeStack.Num() > 0) {
+		TSharedPtr<QuadTreeNode> currentNode = nodeStack.Last(); // Peek at the top
+
+		bool allChildrenProcessed = true;
+
+		// Check if all children have been visited
+		if (!currentNode->IsLeaf()) {
+			for (int i = currentNode->Children.Num() - 1; i >= 0; --i) {
+				if (currentNode->Children[i].IsValid() && !visitedNodes.Contains(currentNode->Children[i])) {
+					nodeStack.Push(currentNode->Children[i]);
+					allChildrenProcessed = false;
+				}
+			}
+		}
+
+		// If all children are processed or node is a leaf, add to process order
+		if (allChildrenProcessed) {
+			nodeStack.Pop(); // Actually remove from stack now
+			processOrder.Add(currentNode);
+			visitedNodes.Add(currentNode);
 		}
 	}
+
+	// Now destroy each node in the correct order (children before parents)
+	for (const auto& node : processOrder) {
+		// Skip the root node as we only want to process children
+		if (node != InNode) {
+			node->DestroyChunk();
+		}
+	}
+
+	// Finally, clear the children array of the input node
 	InNode->Children.Reset();
 }
 
@@ -344,9 +381,6 @@ void QuadTreeNode::CollectLeaves(TSharedPtr<QuadTreeNode> InNode, TArray<TShared
 	if (!InNode.IsValid()) {
 		return;
 	}
-
-	// Lock the entire subtree at the root level
-	FReadScopeLock ReadLock(InNode->MeshDataLock);
 
 	// Create a stack for traversal
 	TArray<TSharedPtr<QuadTreeNode>> nodeStack;
@@ -421,12 +455,10 @@ void QuadTreeNode::SetChunkVisibility(bool inVisibility) {
 	RtMesh->SetSectionVisibility(LandSectionKeyEdge, inVisibility);
 	RtMesh->SetSectionVisibility(LandSectionKeyInner, inVisibility).Then([this, inVisibility](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
 		LastRenderedState = inVisibility;
-		});
+	});
 	if (RenderSea) {
 		RtMesh->SetSectionVisibility(SeaSectionKeyEdge, inVisibility);
-		RtMesh->SetSectionVisibility(SeaSectionKeyInner, inVisibility).Then([this, inVisibility](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
-			LastRenderedState = inVisibility;
-			});
+		RtMesh->SetSectionVisibility(SeaSectionKeyInner, inVisibility);
 	}
 }
 //Must invoke on game thread
@@ -521,9 +553,12 @@ int QuadTreeNode::GenerateVertex(double x, double y, double step) {
 	FVector landPoint = NoiseGen->GetNoiseFromPosition(normalizedPoint) * SphereRadius;
 	double landRadius = FVector::Distance(landPoint, ParentActor->GetActorLocation());
 	double seaRadius = SphereRadius;
-	MinLandRadius = FMath::Min(landRadius, MinLandRadius);
-	MaxLandRadius = FMath::Max(landRadius, MaxLandRadius);
-	MaxNodeRadius = FMath::Max(MaxNodeRadius, FVector::Dist(CenterOnSphere, landPoint));
+
+	if (x != -1 && y != -1 && x < FaceResolution && y < FaceResolution) {
+		MinLandRadius = FMath::Min(landRadius, MinLandRadius);
+		MaxLandRadius = FMath::Max(landRadius, MaxLandRadius);
+		MaxNodeRadius = FMath::Max(MaxNodeRadius, FVector::Dist(CenterOnSphere, landPoint));
+	}
 
 	LandCentroid += landPoint;
 	SeaCentroid += seaPoint;
@@ -973,8 +1008,9 @@ void QuadTreeNode::GenerateMeshData() {
 }
 
 void QuadTreeNode::UpdateMesh() {
-	FWriteScopeLock WriteLock(MeshDataLock);
-	if (!IsInitialized || !HasGenerated) return;
+	AsyncTask(ENamedThreads::GameThread, [this]() {
+		FWriteScopeLock WriteLock(MeshDataLock);
+		if (!IsInitialized || !HasGenerated) return;
 
 		if (isEdgeDirty) {
 			isEdgeDirty = false;
@@ -990,11 +1026,13 @@ void QuadTreeNode::UpdateMesh() {
 			if (Index.GetQuadrant() == 3) {
 				if (Parent.IsValid()) {
 					TSharedPtr<QuadTreeNode> tParent = Parent.Pin();
-					tParent->SetChunkVisibility(false);
+					while (tParent) {
+						tParent->SetChunkVisibility(false);
+						tParent = tParent->Parent.Pin();
+					}
+
 				}
 			}
 		}
-	//AsyncTask(ENamedThreads::GameThread, [this]() {
-
-	//});
+	});
 }
