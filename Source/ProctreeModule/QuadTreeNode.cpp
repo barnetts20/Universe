@@ -218,7 +218,7 @@ void QuadTreeNode::Merge(TSharedPtr<QuadTreeNode> inNode)
 {
 	if (!inNode.IsValid() || inNode->IsLeaf() || inNode->IsRestructuring) return;
 	inNode->CheckNeighbors();
-	Async(EAsyncExecution::TaskGraphMainThread, [inNode]() mutable {
+	AsyncTask(ENamedThreads::GameThread, [inNode]() mutable {
 		inNode->IsRestructuring = true;
 		inNode->SetChunkVisibility(true);
 		inNode->RemoveChildren(inNode->AsShared());
@@ -264,14 +264,15 @@ void QuadTreeNode::RemoveChildren(TSharedPtr<QuadTreeNode> InNode)
 	}
 
 	// Now destroy each node in the correct order (children before parents)
-	for (const auto& node : processOrder) {
-		// Skip the root node as we only want to process children
-		if (node != InNode) {
-			node->DestroyChunk();
+	AsyncTask(ENamedThreads::GameThread, [this, processOrder, InNode]() {
+		for (const auto& node : processOrder) {
+			// Skip the root node as we only want to process children
+			if (node != InNode) {
+				node->DestroyChunk();
+			}
+			node->Children.Reset();
 		}
-		node->Children.Reset();
-	}
-
+	});
 	// Finally, clear the children array of the input node
 	//InNode->Children.Reset();
 }
@@ -332,34 +333,21 @@ int QuadTreeNode::GetDepth() const
 }
 
 void QuadTreeNode::CollectLeaves(TSharedPtr<QuadTreeNode> InNode, TArray<TSharedPtr<QuadTreeNode>>& OutLeafNodes) {
-	// Skip invalid nodes
 	if (!InNode.IsValid()) {
 		return;
 	}
 
-	// Create a stack for traversal
 	TArray<TSharedPtr<QuadTreeNode>> nodeStack;
-
-	// Start with the input node
 	nodeStack.Push(InNode);
-
-	// Process nodes until stack is empty
 	while (nodeStack.Num() > 0) {
-		// Pop the top node from the stack
 		TSharedPtr<QuadTreeNode> currentNode = nodeStack.Pop();
-
-		// Skip invalid nodes (shouldn't happen with lock, but for safety)
 		if (!currentNode.IsValid()) {
 			continue;
 		}
-
-		// If it's a leaf node, add it to our collection
 		if (currentNode->IsLeaf()) {
 			OutLeafNodes.Add(currentNode);
 			continue;
 		}
-
-		// Add all valid children to the stack (in reverse order for proper depth-first traversal)
 		for (int i = currentNode->Children.Num() - 1; i >= 0; --i) {
 			if (currentNode->Children[i].IsValid()) {
 				nodeStack.Add(currentNode->Children[i]);
@@ -374,10 +362,7 @@ void QuadTreeNode::InitializeChunk() {
 	RtMesh = NewObject<URealtimeMeshSimple>(ParentActor);
 	ChunkComponent = NewObject<URealtimeMeshComponent>(ParentActor, URealtimeMeshComponent::StaticClass());
 	ChunkComponent->RegisterComponent();
-
-	if (NoiseGen) {
-		ChunkComponent->SetRenderCustomDepth(true);
-	}
+	ChunkComponent->SetRenderCustomDepth(true);
 
 	FRealtimeMeshCollisionConfiguration cConfig;
 	cConfig.bShouldFastCookMeshes = false;
@@ -403,7 +388,6 @@ void QuadTreeNode::InitializeChunk() {
 	RtMesh->CreateSectionGroup(SeaGroupKeyEdge, SeaMeshStreamEdge);
 
 	IsInitialized = true;
-	//LastRenderedState = true;
 }
 //Must invoke on game thread
 void QuadTreeNode::SetChunkVisibility(bool inVisibility) {
