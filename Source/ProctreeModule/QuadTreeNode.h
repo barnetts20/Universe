@@ -106,6 +106,7 @@ public:
 	bool CheckNeighbors(); //Checks the relevant neighbors for a node
 	void TrySetLod();
 	void TryMerge();
+	bool ShouldMerge(FVector centroid, FVector lastCamPos, double fov, double k, double d2);
 	static void Merge(TSharedPtr<QuadTreeNode> inNode);
 	bool ShouldSplit(FVector centroid, FVector lastCamPos, double fov, double k);
 	static void Split(TSharedPtr<QuadTreeNode> inNode);
