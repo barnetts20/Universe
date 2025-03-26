@@ -17,35 +17,6 @@ APlanetActor::APlanetActor()
 //	InitializeFaceTransforms();
 }
 
-////MAP WORLD AXES TO LOCAL FACE AXES
-//void APlanetActor::InitializeFaceTransforms() {
-//	//WORLD AXES X=0,Y=1,Z=2
-//	FaceTransforms.Add(EFaceDirection::X_POS, {
-//		FIntVector( 1,  2,  0),// FX = WY, FY = WZ, Normal = X
-//		FIntVector( 1,  1,  1) // X+, Y+, N+
-//	});
-//	FaceTransforms.Add(EFaceDirection::Y_POS, {
-//		FIntVector( 0,  2,  1),// FX = WX, FY = WZ, Normal = Y
-//		FIntVector(-1,  1,  1) // X-, Y+, N+
-//	});
-//	FaceTransforms.Add(EFaceDirection::X_NEG, {
-//		FIntVector( 1,  2,  0),// FX = WY, FY = WZ, Normal = X
-//		FIntVector(-1,  1, -1) // X-, Y+, N-
-//	});
-//	FaceTransforms.Add(EFaceDirection::Y_NEG, {
-//		FIntVector( 0,  2,  1),// FX = WX, FY = WZ, Normal = Y
-//		FIntVector( 1,  1, -1) // X+, Y+, N-
-//	});
-//	FaceTransforms.Add(EFaceDirection::Z_POS, {
-//		FIntVector( 0,  1,  2),// FX = WX, FY = WY, Normal = Z
-//		FIntVector( 1,  1,  1) // X+, Y+, N+
-//	});
-//	FaceTransforms.Add(EFaceDirection::Z_NEG, {
-//		FIntVector( 0,  1,  2),// FX = WX, FY = WY, Normal = Z
-//		FIntVector(-1,  1, -1) // X-, Y+, N-
-//	});
-//}
-
 //Called when the actor is destroyed
 void APlanetActor::BeginDestroy()
 {	
@@ -122,23 +93,27 @@ void APlanetActor::UpdateLOD()
 {
 	Async(EAsyncExecution::LargeThreadPool, [this]() {
 		ParallelFor(6, [&](int32 i) {
+		//for (int i = 0; i < 6; i++) {
 			RootNodes[i]->UpdateLod();
+		//}
 		});
 		ParallelFor(6, [&](int32 i) {
+		//for (int i = 0; i < 6; i++) {
 			RootNodes[i]->UpdateNeighbors();
+		//}
 		});
 	});
 }
 
 void APlanetActor::UpdateMesh()
 {
-	//ParallelFor(6, [&](int32 i) {
+	ParallelFor(6, [&](int32 i) {
 	//Async(EAsyncExecution::TaskGraphMainThread, [this]() {
-		for (int i = 0; i < 6; i++) {
+	//	for (int i = 0; i < 6; i++) {
 			RootNodes[i]->UpdateAllMesh();
-		}
+	//	}
 	//});
-	//});
+	});
 }
 TSharedPtr<QuadTreeNode> APlanetActor::GetNodeByIndex(const FQuadIndex& Index) const
 {

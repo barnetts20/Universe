@@ -124,6 +124,7 @@ public:
 	FMeshStreamBuilders InitializeStreamBuilders(FRealtimeMeshStreamSet& inMeshStream, int Resolution);
 	FColor EncodeDepthColor(float depth);
 	FVector GetFacePoint(float step, double x, double y);
+	int VisibleVertexCount = 0;
 	int GenerateVertex(double x, double y, double step);
 	void RemoveChildren(TSharedPtr<QuadTreeNode> InNode);
 	bool isPatchDirty = false;

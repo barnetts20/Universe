@@ -554,20 +554,19 @@ int QuadTreeNode::GenerateVertex(double x, double y, double step) {
 	double landRadius = FVector::Distance(landPoint, ParentActor->GetActorLocation());
 	double seaRadius = SphereRadius;
 
-	if (x != -1 && y != -1 && x < FaceResolution && y < FaceResolution) {
+	//Ignore virtual verts/tris for the purpose of calculating node min/max
+	if (x > -1 && y > -1 && x < FaceResolution && y < FaceResolution) {
 		MinLandRadius = FMath::Min(landRadius, MinLandRadius);
 		MaxLandRadius = FMath::Max(landRadius, MaxLandRadius);
-		MaxNodeRadius = FMath::Max(MaxNodeRadius, FVector::Dist(CenterOnSphere, landPoint));
+		LandCentroid += landPoint;
+		SeaCentroid += seaPoint;
+		VisibleVertexCount++;
 	}
-
-	LandCentroid += landPoint;
-	SeaCentroid += seaPoint;
 
 	FVector2f UV = FVector2f((atan2(normalizedPoint.Y, normalizedPoint.X) + PI) / (2 * PI), (acos(normalizedPoint.Z / normalizedPoint.Size()) / PI));
 
 	int returnIndex = LandVertices.Add(landPoint);
 	SeaVertices.Add(seaPoint);
-
 	TexCoords.Add(UV);
 	LandColors.Add(EncodeDepthColor(landRadius - seaRadius));
 	SeaColors.Add(EncodeDepthColor(seaRadius - landRadius));
@@ -959,12 +958,13 @@ void QuadTreeNode::GenerateMeshData() {
 			}
 		}
 
-		LandCentroid = LandCentroid / LandVertices.Num();
-		SeaCentroid = SeaCentroid / SeaVertices.Num();
+		LandCentroid = LandCentroid / VisibleVertexCount;
+		SeaCentroid = SeaCentroid / VisibleVertexCount;
 
 		uint32 numPos = (uint32)LandVertices.Num();
 		for (uint32 i = 0; i < numPos; i++)
 		{
+			MaxNodeRadius = FMath::Max(MaxNodeRadius, FVector::Dist(LandCentroid, LandVertices[i]));
 			FVector vertexNormal = FVector::ZeroVector;
 			// Calculate the normal by averaging the normals of neighboring triangles
 			for (int32 j = 0; j < AllTriangles.Num(); j++)
