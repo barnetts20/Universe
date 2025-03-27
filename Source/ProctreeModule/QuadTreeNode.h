@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -11,7 +9,7 @@
 #include "PlanetNoise.h"
 
 class APlanetActor;
-class URealtimeMeshSimple; // Forward declaration
+class URealtimeMeshSimple;
 
 class PROCTREEMODULE_API QuadTreeNode : public TSharedFromThis<QuadTreeNode>
 {
@@ -20,12 +18,13 @@ public:
 		APlanetActor* InParentActor,
 		TSharedPtr<INoiseGenerator> InNoiseGen,
 		FQuadIndex InIndex,
-		int InMinDepth,
-		int InMaxDepth,
 		FCubeTransform InFaceTransform,
 		FVector InCenter, 
 		float InSize, 
-		float InRadius);
+		float InRadius,
+		int InMinDepth,
+		int InMaxDepth 
+	);
 
 	//External References	
 	APlanetActor* ParentActor;
@@ -36,7 +35,6 @@ public:
 	TArray<TSharedPtr<QuadTreeNode>> Children;
 	int NeighborLods[4] = { 0,0,0,0 };
 	
-	//Initialization Data
 	FQuadIndex Index;
 	FCubeTransform FaceTransform;
 
@@ -58,6 +56,8 @@ public:
 	bool IsInitialized = false;
 	bool LastRenderedState = false;
 	bool RenderSea = false;
+	bool IsPatchDirty = false;
+	bool IsEdgeDirty = false;
 
 	//Computed Bound/Centroid Data
 	FVector LandCentroid;
@@ -68,6 +68,7 @@ public:
 	double MaxLandRadius;
 
 	//Mesh State Data
+	int VisibleVertexCount = 0;
 	int FaceResolution;
 	TArray<FVector> LandVertices;
 	TArray<FVector3f> LandNormals;
@@ -101,14 +102,19 @@ public:
 	
 	//LOD Update Functions
 	void UpdateLod();
+	void TrySetLod();
 	void UpdateNeighbors();//Recursively propagates neighbor updates 
 	bool CheckNeighbors(); //Checks the relevant neighbors for a node
-	void TrySetLod();
-	void TryMerge();
+	void UpdateAllMesh();
+	void UpdateMesh();
+	bool ChildrenRendered();
+
 	bool ShouldMerge(double d2, double parentSize, double fov, double k);
-	static void Merge(TSharedPtr<QuadTreeNode> inNode);
 	bool ShouldSplit(double d1, double fov, double k);
 	static void Split(TSharedPtr<QuadTreeNode> inNode);
+	void TryMerge();
+	static void Merge(TSharedPtr<QuadTreeNode> inNode);
+	void RemoveChildren(TSharedPtr<QuadTreeNode> InNode);
 
 	//Data checks, leaf collection
 	bool IsLeaf() const;
@@ -124,19 +130,11 @@ public:
 	FMeshStreamBuilders InitializeStreamBuilders(FRealtimeMeshStreamSet& inMeshStream, int Resolution);
 	FColor EncodeDepthColor(float depth);
 	FVector GetFacePoint(float step, double x, double y);
-	int VisibleVertexCount = 0;
 	int GenerateVertex(double x, double y, double step);
-	void RemoveChildren(TSharedPtr<QuadTreeNode> InNode);
-	bool isPatchDirty = false;
-	bool isEdgeDirty = false;
-
+	void GenerateMeshData();
 	void UpdateEdgeMeshBuffer();
 	void UpdatePatchMeshBuffer();
-	void GenerateMeshData();
-	void UpdateMesh(); 
-	void UpdateAllMesh();
+
 protected:
 	FRWLock MeshDataLock;
-	void RecurseRemoveChildren(TSharedPtr<QuadTreeNode> InNode);
-	void RecurseUpdateLod(TWeakPtr<QuadTreeNode> InNode);
 };

@@ -23,18 +23,6 @@ class PROCTREEMODULE_API APlanetActor : public ARealtimeMeshActor
 public:
 	APlanetActor();
 
-	void InitializeFaceTransforms();
-	
-	void BeginDestroy();
-	
-	virtual void OnConstruction(const FTransform& Transform) override;
-	
-	UFUNCTION(BlueprintCallable, Category = "Planet Config")
-	
-	void InitializePlanet();
-	
-	void UpdateLOD();
-
 	// Material properties
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
 	UMaterialInterface* LandMaterial;
@@ -55,10 +43,7 @@ public:
 	int MaxNodeDepth = 12;
 	
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
-    int FaceResolution = 17;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
-	bool UseCameraPositionOverride = false;
+    int FaceResolution = 13;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
 	float SeaLevel = -.1;
@@ -69,24 +54,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
 	float NoiseFrequency = 1.0;
 
-	//TMap<EFaceDirection, FCubeTransform> FaceTransforms;
-
-	TQueue<TFunction<void()>> TaskQueue;
-
-	void EnqueueTask(TFunction<void()> Task);
-	
-	float TimeSinceLastLodUpdate = 0.0f;
-
-	void DequeueTask();
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
-	bool UseNoise = true;
+	bool UseCameraPositionOverride = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Planet Config")
 	FVector CameraOverridePosition;
 
-	//UFUNCTION(BlueprintCallable, Category = "Planet Config")
-	//FPlanetNoiseGeneratorParameters2 GetNoiseParameters();
+	float TimeSinceLastLodUpdate = 0.0f;
 
 	UFUNCTION(BlueprintCallable, Category = "Planet Config")
 	FVector GetLastCameraPosition();
@@ -108,44 +82,39 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Planet Config")
 	FVector GetCameraOverridePosition();
-	void ScheduleMeshUpdate(float IntervalInSeconds);
-	TFuture<URealtimeMeshComponent*> CreateRealtimeMeshComponentAsync();
+
+	TSharedPtr<QuadTreeNode> GetNodeByIndex(const FQuadIndex& Index) const;
+    
+protected:
 	//Root nodes for each face
 	TSharedPtr<QuadTreeNode> RootNodes[6];
 
-	void UpdateMesh();
-
-	TSharedPtr<QuadTreeNode> GetNodeByIndex(const FQuadIndex& Index) const;
-	TSharedPtr<QuadTreeNode> GetLeafNodeByIndex(const FQuadIndex& Index) const;
-    
-protected:
-	virtual void BeginPlay() override;
-	virtual void TickActor(float DeltaTime, ELevelTick TickType, FActorTickFunction& ThisTickFunction) override;
+	//State
 	bool IsDestroyed = false;
+	bool IsInitialized = false;
 	bool IsDataUpdateRunning = false;
 	bool IsMeshUpdateRunning = false;
-	void ScheduleDataUpdate(float IntervalInSeconds);
-
-	virtual bool ShouldTickIfViewportsOnly() const override;
+	bool UseCameraPositionOverrideInternal = false;
 
 	//Settings and camera data
 	double CameraFov = 90;
-	bool UseCameraPositionOverrideInternal = false;
-	FVector CameraOverridePositionInternal;
 	FVector LastCameraPositionInternal;
 	FRotator LastCameraRotationInternal;
+	FVector CameraOverridePositionInternal;
+	
+	//Overrides
+	virtual void BeginPlay() override;
+	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void TickActor(float DeltaTime, ELevelTick TickType, FActorTickFunction& ThisTickFunction) override;
+	virtual bool ShouldTickIfViewportsOnly() const override;
+	virtual void BeginDestroy() override;
 
-	int32 MaxTasksProcessing = 30;
-	int32 TasksProcessing = 0;
-	FCriticalSection TaskCounterLock; // Lock to protect the counter
+	void InitializePlanet();
+	void UpdateLOD();
+	void UpdateMesh();
+	void ScheduleDataUpdate(float IntervalInSeconds);
+	void ScheduleMeshUpdate(float IntervalInSeconds);
 
 	//Node Locks
-	FRWLock xPosLock;
-	FRWLock xNegLock;
-	FRWLock yPosLock;
-	FRWLock yNegLock;
-	FRWLock zPosLock;
-	FRWLock zNegLock;
-
-	bool IsInitialized = false;
+	FRWLock updateLock;
 };
