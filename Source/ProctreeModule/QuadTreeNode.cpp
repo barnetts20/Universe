@@ -1,3 +1,4 @@
+// Fill out your copyright notice in the Description page of Project Settings.
 #include "QuadTreeNode.h"
 #include "Async/Async.h"
 #include "CoreMinimal.h"
@@ -10,7 +11,7 @@
 #include <Mesh/RealtimeMeshAlgo.h>
 
 //This structure is for internal use only, anytime it's data is needed it should be wrapped in a FMeshUpdateData struct
-QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FQuadIndex InIndex, FCubeTransform InFaceTransform, FVector InCenter, float InSize, float InRadius, int InMinDepth, int InMaxDepth) : Index(InIndex)
+QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FQuadIndex InIndex, int InMinDepth, int InMaxDepth, FCubeTransform InFaceTransform, FVector InCenter, float InSize, float InRadius) : Index(InIndex)
 {
 	ParentActor = InParentActor;
 	NoiseGen = InNoiseGen;
@@ -187,42 +188,32 @@ void QuadTreeNode::UpdateMesh() {
 	AsyncTask(ENamedThreads::GameThread, [this]() {
 		FReadScopeLock ReadLock(MeshDataLock);
 		if (!IsInitialized || !HasGenerated) return;
-		if (IsEdgeDirty) {
-			IsEdgeDirty = false;
+		if (isEdgeDirty) {
+			isEdgeDirty = false;
 			auto UpdateStream = FRealtimeMeshStreamSet(LandMeshStreamEdge);
-			if (RenderSea) {
-				auto SeaUpdateStream = FRealtimeMeshStreamSet(SeaMeshStreamEdge);
-				RtMesh->UpdateSectionGroup(SeaGroupKeyEdge, SeaUpdateStream);
-			}
 			RtMesh->UpdateSectionGroup(LandGroupKeyEdge, UpdateStream).Then([this](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
 				LastRenderedState = true;
-			});
+				});
 			RtMesh->UpdateSectionConfig(LandSectionKeyEdge, RtMesh->GetSectionConfig(LandSectionKeyEdge), GetDepth() >= MaxDepth - 3);
-			//LastRenderedState = true;
+			LastRenderedState = true;
 		}
-		if (IsPatchDirty) {
-			IsPatchDirty = false;
-			auto LandUpdateStream = FRealtimeMeshStreamSet(LandMeshStreamInner);
-			if (RenderSea) {
-				auto SeaUpdateStream = FRealtimeMeshStreamSet(SeaMeshStreamInner);
-				RtMesh->UpdateSectionGroup(SeaGroupKeyInner, SeaUpdateStream);
-			}
-			RtMesh->UpdateSectionGroup(LandGroupKeyInner, LandUpdateStream).Then([this](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
-				if (Index.GetQuadrant() == 3) {
-					if (Parent.IsValid()) {
-						TSharedPtr<QuadTreeNode> tParent = Parent.Pin();
-						while (tParent) {
-							if(tParent->Children[0])
-							tParent->SetChunkVisibility(false);
-							tParent = tParent->Parent.Pin();
-						}
-
-					}
-				}
-			});
+		if (isPatchDirty) {
+			isPatchDirty = false;
+			auto UpdateStream = FRealtimeMeshStreamSet(LandMeshStreamInner);
+			RtMesh->UpdateSectionGroup(LandGroupKeyInner, UpdateStream);
 			RtMesh->UpdateSectionConfig(LandSectionKeyInner, RtMesh->GetSectionConfig(LandSectionKeyInner), GetDepth() >= MaxDepth - 3);
+			if (Index.GetQuadrant() == 3) {
+				if (Parent.IsValid()) {
+					TSharedPtr<QuadTreeNode> tParent = Parent.Pin();
+					while (tParent) {
+						tParent->SetChunkVisibility(false);
+						tParent = tParent->Parent.Pin();
+					}
+
+				}
+			}
 		}
-	});
+		});
 }
 
 //LOD and restructuring operations
@@ -256,7 +247,7 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 		FVector childCenter = inNode->Center;
 		childCenter[inNode->FaceTransform.AxisMap[0]] += inNode->FaceTransform.AxisDir[0] * childOffsets[i].X;
 		childCenter[inNode->FaceTransform.AxisMap[1]] += inNode->FaceTransform.AxisDir[1] * childOffsets[i].Y;
-		inNode->Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(i), inNode->FaceTransform, childCenter, inNode->HalfSize, inNode->SphereRadius, inNode->MinDepth, inNode->MaxDepth));
+		inNode->Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(i), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenter, inNode->HalfSize, inNode->SphereRadius));
 		inNode->Children[i]->Parent = inNode.ToWeakPtr();
 	}
 	for (int i = 0; i < 4; i++) {
@@ -645,9 +636,6 @@ void QuadTreeNode::GenerateMeshData() {
 			FVector seaNormal = (SeaVertices[i] - sphereCenter).GetSafeNormal();
 			SeaNormals.Add((FVector3f)seaNormal);
 		}
-		if (MinLandRadius < SphereRadius) {
-			RenderSea = true;
-		}
 
 		bool alwaysRenderOcean = false;
 		double seaMeshTolerance = 10.0;
@@ -894,7 +882,7 @@ void QuadTreeNode::UpdateEdgeMeshBuffer() {
 		seaEdgeBuilders.TrianglesBuilder->Add(FIndex3UI(sv0, sv1, sv2));
 		seaEdgeBuilders.PolygroupsBuilder->Add(1);
 	}
-	IsEdgeDirty = true;
+	isEdgeDirty = true;
 }
 void QuadTreeNode::UpdatePatchMeshBuffer() {
 	if (!HasGenerated) return;
@@ -953,8 +941,7 @@ void QuadTreeNode::UpdatePatchMeshBuffer() {
 
 		FIndex3UI newSeaTri = FIndex3UI(sv0, sv1, sv2);
 		seaBuilders.TrianglesBuilder->Add(newSeaTri);
-		seaBuilders.PolygroupsBuilder->Add(1);
+		seaBuilders.PolygroupsBuilder->Add(0);
 	}
-	IsPatchDirty = true;
-	IsEdgeDirty = true;
+	isPatchDirty = true;
 }
