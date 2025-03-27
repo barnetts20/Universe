@@ -19,13 +19,14 @@ public:
 	QuadTreeNode(
 		APlanetActor* InParentActor,
 		TSharedPtr<INoiseGenerator> InNoiseGen,
-		FQuadIndex InIndex,
-		int InMinDepth,
-		int InMaxDepth,
 		FCubeTransform InFaceTransform,
+		FQuadIndex InIndex,
 		FVector InCenter, 
 		float InSize, 
-		float InRadius);
+		float InRadius,
+		int InMinDepth,
+		int InMaxDepth
+	);
 
 	//External References	
 	APlanetActor* ParentActor;

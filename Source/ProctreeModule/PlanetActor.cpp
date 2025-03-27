@@ -72,12 +72,12 @@ void APlanetActor::InitializePlanet()
 	double size = 1000.0;
 	double halfSize = size * .5;	
 
-	RootNodes[(uint8)EFaceDirection::X_POS] = MakeShared<QuadTreeNode>(this, NoiseGen0, FQuadIndex((uint8)EFaceDirection::X_POS), this->MinNodeDepth, this->MaxNodeDepth, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::X_POS], FVector(halfSize, 0.0f, 0.0f), size, this->PlanetMeshParameters.planetRadius);
-	RootNodes[(uint8)EFaceDirection::X_NEG] = MakeShared<QuadTreeNode>(this, NoiseGen1, FQuadIndex((uint8)EFaceDirection::X_NEG), this->MinNodeDepth, this->MaxNodeDepth, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::X_NEG], FVector(-halfSize, 0.0f, 0.0f), size, this->PlanetMeshParameters.planetRadius);
-	RootNodes[(uint8)EFaceDirection::Y_POS] = MakeShared<QuadTreeNode>(this, NoiseGen2, FQuadIndex((uint8)EFaceDirection::Y_POS), this->MinNodeDepth, this->MaxNodeDepth, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::Y_POS], FVector(0.0f, halfSize, 0.0f), size, this->PlanetMeshParameters.planetRadius);
-	RootNodes[(uint8)EFaceDirection::Y_NEG] = MakeShared<QuadTreeNode>(this, NoiseGen3, FQuadIndex((uint8)EFaceDirection::Y_NEG), this->MinNodeDepth, this->MaxNodeDepth, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::Y_NEG], FVector(0.0f, -halfSize, 0.0f), size, this->PlanetMeshParameters.planetRadius);
-	RootNodes[(uint8)EFaceDirection::Z_POS] = MakeShared<QuadTreeNode>(this, NoiseGen4, FQuadIndex((uint8)EFaceDirection::Z_POS), this->MinNodeDepth, this->MaxNodeDepth, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::Z_POS], FVector(0.0f, 0.0f, halfSize), size, this->PlanetMeshParameters.planetRadius);
-	RootNodes[(uint8)EFaceDirection::Z_NEG] = MakeShared<QuadTreeNode>(this, NoiseGen5, FQuadIndex((uint8)EFaceDirection::Z_NEG), this->MinNodeDepth, this->MaxNodeDepth, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::Z_NEG], FVector(0.0f, 0.0f, -halfSize), size, this->PlanetMeshParameters.planetRadius);
+	RootNodes[(uint8)EFaceDirection::X_POS] = MakeShared<QuadTreeNode>(this, NoiseGen0, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::X_POS], FQuadIndex((uint8)EFaceDirection::X_POS), FVector( halfSize, 0.0f, 0.0f), size, this->PlanetMeshParameters.planetRadius, this->MinNodeDepth, this->MaxNodeDepth);
+	RootNodes[(uint8)EFaceDirection::X_NEG] = MakeShared<QuadTreeNode>(this, NoiseGen1, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::X_NEG], FQuadIndex((uint8)EFaceDirection::X_NEG), FVector(-halfSize, 0.0f, 0.0f), size, this->PlanetMeshParameters.planetRadius, this->MinNodeDepth, this->MaxNodeDepth);
+	RootNodes[(uint8)EFaceDirection::Y_POS] = MakeShared<QuadTreeNode>(this, NoiseGen2, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::Y_POS], FQuadIndex((uint8)EFaceDirection::Y_POS), FVector(0.0f,  halfSize, 0.0f), size, this->PlanetMeshParameters.planetRadius, this->MinNodeDepth, this->MaxNodeDepth);
+	RootNodes[(uint8)EFaceDirection::Y_NEG] = MakeShared<QuadTreeNode>(this, NoiseGen3, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::Y_NEG], FQuadIndex((uint8)EFaceDirection::Y_NEG), FVector(0.0f, -halfSize, 0.0f), size, this->PlanetMeshParameters.planetRadius, this->MinNodeDepth, this->MaxNodeDepth);
+	RootNodes[(uint8)EFaceDirection::Z_POS] = MakeShared<QuadTreeNode>(this, NoiseGen4, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::Z_POS], FQuadIndex((uint8)EFaceDirection::Z_POS), FVector(0.0f, 0.0f,  halfSize), size, this->PlanetMeshParameters.planetRadius, this->MinNodeDepth, this->MaxNodeDepth);
+	RootNodes[(uint8)EFaceDirection::Z_NEG] = MakeShared<QuadTreeNode>(this, NoiseGen5, FCubeTransform::FaceTransforms[(uint8)EFaceDirection::Z_NEG], FQuadIndex((uint8)EFaceDirection::Z_NEG), FVector(0.0f, 0.0f, -halfSize), size, this->PlanetMeshParameters.planetRadius, this->MinNodeDepth, this->MaxNodeDepth);
 
 	for (int i = 0; i < 6; i++) {
 		RootNodes[i]->InitializeChunk();
@@ -217,16 +217,6 @@ void APlanetActor::DequeueTask()
 		}
 	}
 }
-
-//FPlanetNoiseGeneratorParameters2 APlanetActor::GetNoiseParameters()
-//{
-//	if (this->NoiseGen) {
-//		return this->NoiseGen->Parameters;
-//	}
-//	else {
-//		return FPlanetNoiseGeneratorParameters2();
-//	}	
-//}
 
 // Called every frame
 void APlanetActor::TickActor(float DeltaTime, ELevelTick TickType, FActorTickFunction& ThisTickFunction)

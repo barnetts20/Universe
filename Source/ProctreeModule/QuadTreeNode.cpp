@@ -11,7 +11,7 @@
 #include <Mesh/RealtimeMeshAlgo.h>
 
 //This structure is for internal use only, anytime it's data is needed it should be wrapped in a FMeshUpdateData struct
-QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FQuadIndex InIndex, int InMinDepth, int InMaxDepth, FCubeTransform InFaceTransform, FVector InCenter, float InSize, float InRadius) : Index(InIndex)
+QuadTreeNode::QuadTreeNode(APlanetActor* InParentActor, TSharedPtr<INoiseGenerator> InNoiseGen, FCubeTransform InFaceTransform, FQuadIndex InIndex, FVector InCenter, float InSize, float InRadius, int InMinDepth, int InMaxDepth) : Index(InIndex)
 {
 	ParentActor = InParentActor;
 	NoiseGen = InNoiseGen;
@@ -247,7 +247,7 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 		FVector childCenter = inNode->Center;
 		childCenter[inNode->FaceTransform.AxisMap[0]] += inNode->FaceTransform.AxisDir[0] * childOffsets[i].X;
 		childCenter[inNode->FaceTransform.AxisMap[1]] += inNode->FaceTransform.AxisDir[1] * childOffsets[i].Y;
-		inNode->Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->Index.GetChildIndex(i), inNode->MinDepth, inNode->MaxDepth, inNode->FaceTransform, childCenter, inNode->HalfSize, inNode->SphereRadius));
+		inNode->Children.Add(MakeShared<QuadTreeNode>(inNode->ParentActor, inNode->NoiseGen, inNode->FaceTransform, inNode->Index.GetChildIndex(i), childCenter, inNode->HalfSize, inNode->SphereRadius, inNode->MinDepth, inNode->MaxDepth));
 		inNode->Children[i]->Parent = inNode.ToWeakPtr();
 	}
 	for (int i = 0; i < 4; i++) {
