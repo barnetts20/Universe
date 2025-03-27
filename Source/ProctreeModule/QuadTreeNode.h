@@ -26,7 +26,6 @@ public:
 		FVector InCenter, 
 		float InSize, 
 		float InRadius);
-	~QuadTreeNode();
 
 	//External References	
 	APlanetActor* ParentActor;
@@ -106,9 +105,9 @@ public:
 	bool CheckNeighbors(); //Checks the relevant neighbors for a node
 	void TrySetLod();
 	void TryMerge();
-	bool ShouldMerge(FVector centroid, FVector lastCamPos, double fov, double k, double d2);
+	bool ShouldMerge(double d2, double parentSize, double fov, double k);
 	static void Merge(TSharedPtr<QuadTreeNode> inNode);
-	bool ShouldSplit(FVector centroid, FVector lastCamPos, double fov, double k);
+	bool ShouldSplit(double d1, double fov, double k);
 	static void Split(TSharedPtr<QuadTreeNode> inNode);
 
 	//Data checks, leaf collection
