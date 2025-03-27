@@ -276,8 +276,8 @@ void QuadTreeNode::Split(TSharedPtr<QuadTreeNode> inNode)
 				inNode->Children[i]->GenerateMeshData();
 			}
 			inNode->IsRestructuring = false;
-			});
 		});
+	});
 }
 void QuadTreeNode::TryMerge()
 {
