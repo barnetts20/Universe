@@ -138,6 +138,4 @@ public:
 	void UpdateAllMesh();
 protected:
 	FRWLock MeshDataLock;
-	void RecurseRemoveChildren(TSharedPtr<QuadTreeNode> InNode);
-	void RecurseUpdateLod(TWeakPtr<QuadTreeNode> InNode);
 };

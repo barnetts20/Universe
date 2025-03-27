@@ -7,15 +7,6 @@
 
 class QuadTreeNode;
 
-UENUM(BlueprintType)
-enum  class EMeshUpdateType : uint8 {
-	ADD UMETA(DisplayName = "Add"),
-	REMOVE UMETA(DisplayName = "Remove"),
-	UPDATE UMETA(DisplayName = "Update"),
-	SHOW UMETA(DisplayName = "Show"),
-	HIDE UMETA(DisplayName = "Hide")
-};
-
 USTRUCT(BlueprintType)
 struct FIntBounds {
 	GENERATED_BODY()
@@ -305,44 +296,6 @@ struct PROCTREEMODULE_API FMeshStreamBuilders {
 	int32 NumTriangles;
 };
 
-struct PROCTREEMODULE_API FMeshUpdateStatus {
-	FString NodeId;
-	bool RenderStatus;
-};
-
-struct PROCTREEMODULE_API FMeshUpdateData {
-	double UpdateTime;
-	FString NodeID;
-	int32 Priority;
-	int32 LodLevel;
-	EMeshUpdateType UpdateType;
-};
-
-struct PROCTREEMODULE_API FMeshUpdateDataBatch {
-	double UpdateTimestamp;
-	int Priority;
-	TArray<TSharedPtr<FMeshUpdateData>> MeshAdds;
-	TArray<TSharedPtr<FMeshUpdateData>> MeshRemoves;
-};
-struct PROCTREEMODULE_API InternalMeshData {
-	InternalMeshData() { };
-	InternalMeshData(int32 InResolution) {
-		ModifiedResolution = InResolution + 2;
-	};
-
-	int ModifiedResolution;
-	TArray<FVector> VertexGrid;
-	TArray<FIndex3UI> BaseTriangles;
-	TMap<uint8, int32> EdgeTriangles;
-	///TMap<uint8, int32> CornerTriangles; //TOP LEFT, TOP RIGHT, BOTTOM RIGHT, BOTTOM LEFT
-
-	FVector& GetVertex(int32 InX, int32 InY) {
-		int32 X = InX + 1;
-		int32 Y = InY + 1;
-		check(X >= 0 && X < ModifiedResolution && Y >= 0 && Y < ModifiedResolution);
-		return VertexGrid[Y * ModifiedResolution + X];
-	}
-};
 UENUM(BlueprintType)
 enum class EdgeOrientation : uint8 {
 	LEFT = 0,
@@ -384,8 +337,6 @@ struct PROCTREEMODULE_API FCubeTransform {
 
 	static const FCubeTransform FaceTransforms[6];
 };
-
-
 
 struct PROCTREEMODULE_API FQuadIndex {
 	uint64 EncodedPath;

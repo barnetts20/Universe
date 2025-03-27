@@ -56,26 +56,31 @@ void QuadTreeNode::TrySetLod() {
 
 		//Since we are doing origin rebasing frequently, the actors location can "change" arbitrarily and needs to be accounted for
 		FVector planetCenter = ParentActor->GetActorLocation();
-		FVector adjustedCentroid = LandCentroid * ParentActor->GetActorScale().X + planetCenter;
-		auto parentCenter = adjustedCentroid;
-		auto parentSize = MaxNodeRadius * ParentActor->GetActorScale().X;
+		FVector NodeCentroid = LandCentroid;
+		if(RenderSea && FVector::Dist(SeaCentroid, lastCamPos) < FVector::Dist(LandCentroid, lastCamPos)) NodeCentroid = SeaCentroid;
+		FVector adjustedCentroid = NodeCentroid * ParentActor->GetActorScale().X + planetCenter;
+		auto ParentCentroid = adjustedCentroid;
+		auto ParentSize = MaxNodeRadius * ParentActor->GetActorScale().X;
 
 		double planetRadius = FVector::Distance(ParentActor->GetActorLocation(), adjustedCentroid);
 
 		if (Parent.IsValid()) {
-			parentCenter = Parent.Pin()->LandCentroid * ParentActor->GetActorScale().X + planetCenter;
-			parentSize = Parent.Pin()->MaxNodeRadius * ParentActor->GetActorScale().X;
+			TSharedPtr<QuadTreeNode> tParent = Parent.Pin();
+			ParentCentroid = tParent->LandCentroid;
+			if (tParent->RenderSea && FVector::Dist(tParent->SeaCentroid, lastCamPos) < FVector::Dist(tParent->LandCentroid, lastCamPos)) ParentCentroid = tParent->SeaCentroid;
+			ParentCentroid = ParentCentroid * ParentActor->GetActorScale().X + planetCenter;
+			ParentSize = tParent->MaxNodeRadius * ParentActor->GetActorScale().X;
 		}
 
 		double d1 = FVector::Distance(lastCamPos, adjustedCentroid);
-		double d2 = FVector::Distance(lastCamPos, parentCenter);
+		double d2 = FVector::Distance(lastCamPos, ParentCentroid);
 		if (ShouldSplit(d1, fov, k)) {
 			CanMerge = false;
 			if (LastRenderedState) {
 				QuadTreeNode::Split(AsShared());
 			}
 		}
-		else if (ShouldMerge(d2, parentSize, fov, k)) {
+		else if (ShouldMerge(d2, ParentSize, fov, k)) {
 			CanMerge = true;
 			if (Index.GetQuadrant() == 3)
 				Parent.Pin()->TryMerge();
@@ -190,35 +195,38 @@ void QuadTreeNode::UpdateMesh() {
 		if (!IsInitialized || !HasGenerated) return;
 		if (isEdgeDirty) {
 			isEdgeDirty = false;
+			if (RenderSea) {
+				auto SeaUpdateStream = FRealtimeMeshStreamSet(SeaMeshStreamEdge);
+				RtMesh->UpdateSectionGroup(SeaGroupKeyEdge, SeaUpdateStream);
+			}
 			auto UpdateStream = FRealtimeMeshStreamSet(LandMeshStreamEdge);
 			RtMesh->UpdateSectionGroup(LandGroupKeyEdge, UpdateStream);
 			RtMesh->UpdateSectionConfig(LandSectionKeyEdge, RtMesh->GetSectionConfig(LandSectionKeyEdge), GetDepth() >= MaxDepth - 3);
 		}
 		if (isPatchDirty) {
 			isPatchDirty = false;
+			if (RenderSea) {
+				auto SeaUpdateStream = FRealtimeMeshStreamSet(SeaMeshStreamInner);
+				RtMesh->UpdateSectionGroup(SeaGroupKeyInner, SeaUpdateStream);
+			}
 			auto UpdateStream = FRealtimeMeshStreamSet(LandMeshStreamInner);
 			RtMesh->UpdateSectionGroup(LandGroupKeyInner, UpdateStream).Then([this](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
-				LastRenderedState = true;
-				if (Parent.IsValid()) { 
-					auto tParent = Parent.Pin();
-					bool hideParent = true;
-					for (auto aChild : tParent->Children) {
-						if (!aChild->LastRenderedState) {
-							hideParent = false;
+				AsyncTask(ENamedThreads::GameThread, [this]() {
+					LastRenderedState = true;
+					if (Parent.IsValid()) { 
+						auto tParent = Parent.Pin();
+						if (tParent->Children[0]->LastRenderedState && tParent->Children[1]->LastRenderedState && tParent->Children[2]->LastRenderedState && tParent->Children[3]->LastRenderedState) {
+							while (tParent) {
+								tParent->SetChunkVisibility(false);
+								tParent = tParent->Parent.Pin();
+							}
 						}
 					}
-					if (hideParent) {
-						while (tParent) {
-							tParent->SetChunkVisibility(false);
-							tParent = tParent->Parent.Pin();
-						}
-					}
-				}
+				});
 			});
 			RtMesh->UpdateSectionConfig(LandSectionKeyInner, RtMesh->GetSectionConfig(LandSectionKeyInner), GetDepth() >= MaxDepth - 3);
-
 		}
-		});
+	});
 }
 
 //LOD and restructuring operations
@@ -348,6 +356,7 @@ int QuadTreeNode::GetDepth() const
 	return Index.GetDepth();
 }
 void QuadTreeNode::CollectLeaves(TSharedPtr<QuadTreeNode> InNode, TArray<TSharedPtr<QuadTreeNode>>& OutLeafNodes) {
+	FReadScopeLock ReadLock(InNode->MeshDataLock);
 	if (!InNode.IsValid()) {
 		return;
 	}
@@ -364,7 +373,7 @@ void QuadTreeNode::CollectLeaves(TSharedPtr<QuadTreeNode> InNode, TArray<TShared
 			continue;
 		}
 		for (int i = currentNode->Children.Num() - 1; i >= 0; --i) {
-			if (currentNode->Children[i].IsValid()) {
+			if (currentNode && currentNode->Children[i].IsValid()) {
 				nodeStack.Add(currentNode->Children[i]);
 			}
 		}
@@ -641,14 +650,12 @@ void QuadTreeNode::GenerateMeshData() {
 			FVector seaNormal = (SeaVertices[i] - sphereCenter).GetSafeNormal();
 			SeaNormals.Add((FVector3f)seaNormal);
 		}
-
-		bool alwaysRenderOcean = false;
-		double seaMeshTolerance = 10.0;
-
+		double seaThreshold = 100;
+		if (MinLandRadius - seaThreshold < SphereRadius) RenderSea = true;
 		HasGenerated = true;
 	}
-	UpdatePatchMeshBuffer();
 	UpdateEdgeMeshBuffer();
+	UpdatePatchMeshBuffer();
 }
 void QuadTreeNode::UpdateEdgeMeshBuffer() {
 	if (!HasGenerated) return;
@@ -946,7 +953,7 @@ void QuadTreeNode::UpdatePatchMeshBuffer() {
 
 		FIndex3UI newSeaTri = FIndex3UI(sv0, sv1, sv2);
 		seaBuilders.TrianglesBuilder->Add(newSeaTri);
-		seaBuilders.PolygroupsBuilder->Add(0);
+		seaBuilders.PolygroupsBuilder->Add(1);
 	}
 	isPatchDirty = true;
 }

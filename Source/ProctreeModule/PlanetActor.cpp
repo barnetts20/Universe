@@ -6,7 +6,6 @@
 #include <Camera/CameraComponent.h>
 #include <Mesh/RealtimeMeshSimpleData.h>
 #include <Mesh/RealtimeMeshBasicShapeTools.h>
-#include "QuadTreeConcurrencyManager.h"
 
 // Sets default values
 APlanetActor::APlanetActor()
@@ -86,7 +85,7 @@ void APlanetActor::InitializePlanet()
 
 	this->IsInitialized = true;
 	ScheduleDataUpdate(.1);
-	ScheduleMeshUpdate(.15);
+	ScheduleMeshUpdate(.1);
 }
 
 void APlanetActor::UpdateLOD()
@@ -107,6 +106,7 @@ void APlanetActor::UpdateMesh()
 		RootNodes[i]->UpdateAllMesh();
 	});
 }
+
 TSharedPtr<QuadTreeNode> APlanetActor::GetNodeByIndex(const FQuadIndex& Index) const
 {
 	// Get the root node for the specified face
@@ -128,36 +128,6 @@ TSharedPtr<QuadTreeNode> APlanetActor::GetNodeByIndex(const FQuadIndex& Index) c
 			return currentNode;  // Node doesn't exist at requested depth
 
 		// Move to the next child in the path
-		currentNode = currentNode->Children[quadrant];
-	}
-
-	return currentNode;
-}
-
-TSharedPtr<QuadTreeNode> APlanetActor::GetLeafNodeByIndex(const FQuadIndex& Index) const
-{
-	// Get the root node for the specified face
-	TSharedPtr<QuadTreeNode> currentNode = RootNodes[Index.FaceId];
-
-	// If we're looking for the root node, return it immediately
-	if (Index.IsRoot())
-		return currentNode;
-
-	// Traverse down the tree as far as possible along the path
-	uint8 targetDepth = Index.GetDepth();
-	for (uint8 level = 0; level < targetDepth; ++level)
-	{
-		// Stop if we've reached a leaf node
-		if (currentNode->IsLeaf())
-			break;
-
-		uint8 quadrant = Index.GetQuadrantAtDepth(level);
-
-		// Stop if the requested child doesn't exist
-		if (quadrant >= currentNode->Children.Num())
-			break;
-
-		// Move to the child
 		currentNode = currentNode->Children[quadrant];
 	}
 
@@ -199,32 +169,11 @@ FVector APlanetActor::GetCameraOverridePosition()
 	return this->CameraOverridePositionInternal;
 }
 
-void APlanetActor::EnqueueTask(TFunction<void()> Task)
-{
-	this->TaskQueue.Enqueue(Task);
-}
-
-void APlanetActor::DequeueTask()
-{
-	TFunction<void()> Task;
-	for (int i = 0; i < 12; i++) {
-		if (TaskQueue.Dequeue(Task))
-		{
-			Task();
-		}
-		else {
-			break;
-		}
-	}
-}
-
 // Called every frame
 void APlanetActor::TickActor(float DeltaTime, ELevelTick TickType, FActorTickFunction& ThisTickFunction)
 {
-	//Super::TickActor(DeltaTime, TickType, ThisTickFunction);
-	this->DequeueTask();
 	this->TimeSinceLastLodUpdate += DeltaTime;
-	if (this->TimeSinceLastLodUpdate >= .25f && this->IsInitialized) {
+	if (this->TimeSinceLastLodUpdate >= .05f && this->IsInitialized) {
 		
 		auto camManager = UGameplayStatics::GetPlayerCameraManager(GetWorld(), 0);
 		if (this->UseCameraPositionOverride) {
@@ -246,10 +195,8 @@ void APlanetActor::TickActor(float DeltaTime, ELevelTick TickType, FActorTickFun
 				}
 			}
 		}
-
-		//this->TimeSinceLastLodUpdate = 0.0;
-		//this->UpdateLOD();
 	}
+	Super::TickActor(DeltaTime, TickType, ThisTickFunction);
 }
 
 void APlanetActor::ScheduleDataUpdate(float IntervalInSeconds)
@@ -282,7 +229,6 @@ void APlanetActor::ScheduleDataUpdate(float IntervalInSeconds)
 	}
 }
 
-
 void APlanetActor::ScheduleMeshUpdate(float IntervalInSeconds)
 {
 	if (!IsMeshUpdateRunning && !IsDestroyed)
@@ -313,25 +259,6 @@ void APlanetActor::ScheduleMeshUpdate(float IntervalInSeconds)
 	}
 }
 
-TFuture<URealtimeMeshComponent*> APlanetActor::CreateRealtimeMeshComponentAsync()
-{
-	TPromise<URealtimeMeshComponent*> Promise;
-	TFuture<URealtimeMeshComponent*> Future = Promise.GetFuture();
-
-	// Execute on game thread
-	AsyncTask(ENamedThreads::GameThread, [this, Promise = MoveTemp(Promise)]() mutable {
-		URealtimeMeshComponent* NewComponent = NewObject<URealtimeMeshComponent>(this, URealtimeMeshComponent::StaticClass());
-		NewComponent->RegisterComponent();
-		NewComponent->AttachToComponent(this->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
-		NewComponent->SetMaterial(0, this->GetRealtimeMeshComponent()->GetMaterial(0));
-		NewComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		NewComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
-
-		Promise.SetValue(NewComponent);
-	});
-
-	return Future;
-}
 // Toggles if preview and lod updates will be avaialble from the editor viewport
 bool APlanetActor::ShouldTickIfViewportsOnly() const
 {

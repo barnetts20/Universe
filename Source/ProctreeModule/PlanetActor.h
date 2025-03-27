@@ -8,7 +8,6 @@
 #include <Camera/CameraComponent.h>
 #include <Mesh/RealtimeMeshSimpleData.h>
 #include "PlanetSharedStructs.h"
-#include "MeshUpdatePriorityQueue.h"
 #include "PlanetActor.generated.h"
 
 class QuadTreeNode;
