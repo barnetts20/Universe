@@ -191,27 +191,32 @@ void QuadTreeNode::UpdateMesh() {
 		if (isEdgeDirty) {
 			isEdgeDirty = false;
 			auto UpdateStream = FRealtimeMeshStreamSet(LandMeshStreamEdge);
-			RtMesh->UpdateSectionGroup(LandGroupKeyEdge, UpdateStream).Then([this](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
-				LastRenderedState = true;
-				});
+			RtMesh->UpdateSectionGroup(LandGroupKeyEdge, UpdateStream);
 			RtMesh->UpdateSectionConfig(LandSectionKeyEdge, RtMesh->GetSectionConfig(LandSectionKeyEdge), GetDepth() >= MaxDepth - 3);
-			LastRenderedState = true;
 		}
 		if (isPatchDirty) {
 			isPatchDirty = false;
 			auto UpdateStream = FRealtimeMeshStreamSet(LandMeshStreamInner);
-			RtMesh->UpdateSectionGroup(LandGroupKeyInner, UpdateStream);
-			RtMesh->UpdateSectionConfig(LandSectionKeyInner, RtMesh->GetSectionConfig(LandSectionKeyInner), GetDepth() >= MaxDepth - 3);
-			if (Index.GetQuadrant() == 3) {
-				if (Parent.IsValid()) {
-					TSharedPtr<QuadTreeNode> tParent = Parent.Pin();
-					while (tParent) {
-						tParent->SetChunkVisibility(false);
-						tParent = tParent->Parent.Pin();
+			RtMesh->UpdateSectionGroup(LandGroupKeyInner, UpdateStream).Then([this](TFuture<ERealtimeMeshProxyUpdateStatus> completedFuture) {
+				LastRenderedState = true;
+				if (Parent.IsValid()) { 
+					auto tParent = Parent.Pin();
+					bool hideParent = true;
+					for (auto aChild : tParent->Children) {
+						if (!aChild->LastRenderedState) {
+							hideParent = false;
+						}
 					}
-
+					if (hideParent) {
+						while (tParent) {
+							tParent->SetChunkVisibility(false);
+							tParent = tParent->Parent.Pin();
+						}
+					}
 				}
-			}
+			});
+			RtMesh->UpdateSectionConfig(LandSectionKeyInner, RtMesh->GetSectionConfig(LandSectionKeyInner), GetDepth() >= MaxDepth - 3);
+
 		}
 		});
 }
