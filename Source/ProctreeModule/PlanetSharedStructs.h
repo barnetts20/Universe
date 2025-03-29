@@ -218,7 +218,7 @@ public:
 	int seed = 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	double planetRadius = 20000000.0;
+	double planetRadius = 2000000000.0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	double planetDensity = 1.0;

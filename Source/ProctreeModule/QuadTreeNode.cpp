@@ -56,9 +56,15 @@ void QuadTreeNode::TrySetLod() {
 
 		//Since we are doing origin rebasing frequently, the actors location can "change" arbitrarily and needs to be accounted for
 		FVector planetCenter = ParentActor->GetActorLocation();
-		FVector NodeCentroid = LandCentroid;
-		if(RenderSea && FVector::Dist(SeaCentroid, lastCamPos) < FVector::Dist(LandCentroid, lastCamPos)) NodeCentroid = SeaCentroid;
+
+		// Calculate the world-space position of the *unperturbed* chunk center on the sphere
+		FVector unperturbedPoint = Center.GetSafeNormal() * SphereRadius;
+
+		//Transform world space to local space by subtracting the world offset
+		FVector NodeCentroid = LandCentroid + unperturbedPoint;
+		if (RenderSea && FVector::Dist(SeaCentroid + unperturbedPoint, lastCamPos) < FVector::Dist(LandCentroid + unperturbedPoint, lastCamPos)) NodeCentroid = SeaCentroid + unperturbedPoint;
 		FVector adjustedCentroid = NodeCentroid * ParentActor->GetActorScale().X + planetCenter;
+
 		auto ParentCentroid = adjustedCentroid;
 		auto ParentSize = MaxNodeRadius * ParentActor->GetActorScale().X;
 
@@ -66,8 +72,11 @@ void QuadTreeNode::TrySetLod() {
 
 		if (Parent.IsValid()) {
 			TSharedPtr<QuadTreeNode> tParent = Parent.Pin();
-			ParentCentroid = tParent->LandCentroid;
-			if (tParent->RenderSea && FVector::Dist(tParent->SeaCentroid, lastCamPos) < FVector::Dist(tParent->LandCentroid, lastCamPos)) ParentCentroid = tParent->SeaCentroid;
+			//Calculate the world-space position of the *unperturbed* parent center on the sphere
+			FVector pUnperturbedPoint = tParent->Center.GetSafeNormal() * SphereRadius;
+
+			ParentCentroid = tParent->LandCentroid + pUnperturbedPoint;
+			if (tParent->RenderSea && FVector::Dist(tParent->SeaCentroid + pUnperturbedPoint, lastCamPos) < FVector::Dist(tParent->LandCentroid + pUnperturbedPoint, lastCamPos)) ParentCentroid = tParent->SeaCentroid + pUnperturbedPoint;
 			ParentCentroid = ParentCentroid * ParentActor->GetActorScale().X + planetCenter;
 			ParentSize = tParent->MaxNodeRadius * ParentActor->GetActorScale().X;
 		}
@@ -404,6 +413,12 @@ void QuadTreeNode::InitializeChunk() {
 	ChunkComponent->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
 	ChunkComponent->SetRealtimeMesh(RtMesh);
 
+	// Calculate the world-space position of the *unperturbed* chunk center on the sphere
+	FVector unperturbedPoint = Center.GetSafeNormal() * SphereRadius;
+
+	// Set the world offset.
+	ChunkComponent->AddWorldOffset(unperturbedPoint + ParentActor->GetActorLocation());
+
 	RtMesh->CreateSectionGroup(LandGroupKeyInner, LandMeshStreamInner);
 	RtMesh->CreateSectionGroup(SeaGroupKeyInner, SeaMeshStreamInner);
 
@@ -474,7 +489,7 @@ FColor QuadTreeNode::EncodeDepthColor(float depth) {
 FVector QuadTreeNode::GetFacePoint(float step, double x, double y) {
 	//Translates loop x/y into local face positioning
 	// Create a result vector starting with the node's center
-	FVector result = Center;
+	FVector result = FVector::ZeroVector;
 
 	// Get normalized coordinates in face-local space
 	double normX = -HalfSize + step * x;
@@ -504,12 +519,27 @@ FVector QuadTreeNode::GetFacePoint(float step, double x, double y) {
 
 	return result;
 }
+
 int QuadTreeNode::GenerateVertex(double x, double y, double step) {
-	//Populates internal mesh data used to derive mesh buffers
-	FVector facePoint = GetFacePoint(step, x, y);
-	FVector normalizedPoint = facePoint.GetSafeNormal();
-	FVector seaPoint = normalizedPoint * SphereRadius;//TODO: SEA LEVEL INTEGRATION
+	FVector facePoint = GetFacePoint(step, x, y); // Face point relative to Center.
+
+	// Calculate world-space position of the *unperturbed* chunk center on the sphere
+	FVector unperturbedPoint = Center.GetSafeNormal() * SphereRadius;
+
+	// Now get the actual point on the face in world space
+	FVector worldPoint = Center + facePoint;
+
+	// Normalize the world space point (still without noise).
+	FVector normalizedPoint = worldPoint.GetSafeNormal();
+
+	// Add noise to get the final land position.
 	FVector landPoint = NoiseGen->GetNoiseFromPosition(normalizedPoint) * SphereRadius;
+	FVector seaPoint = normalizedPoint * SphereRadius;
+
+	// Calculate local position relative to the *unperturbed* point
+	FVector localLandPoint = landPoint - unperturbedPoint;
+	FVector localSeaPoint = seaPoint - unperturbedPoint;
+
 	double landRadius = FVector::Distance(landPoint, ParentActor->GetActorLocation());
 	double seaRadius = SphereRadius;
 
@@ -517,15 +547,15 @@ int QuadTreeNode::GenerateVertex(double x, double y, double step) {
 	if (x > -1 && y > -1 && x < FaceResolution && y < FaceResolution) {
 		MinLandRadius = FMath::Min(landRadius, MinLandRadius);
 		MaxLandRadius = FMath::Max(landRadius, MaxLandRadius);
-		LandCentroid += landPoint;
-		SeaCentroid += seaPoint;
+		LandCentroid += localLandPoint;
+		SeaCentroid += localSeaPoint;
 		VisibleVertexCount++;
 	}
 
 	FVector2f UV = FVector2f((atan2(normalizedPoint.Y, normalizedPoint.X) + PI) / (2 * PI), (acos(normalizedPoint.Z / normalizedPoint.Size()) / PI));
 
-	int returnIndex = LandVertices.Add(landPoint);
-	SeaVertices.Add(seaPoint);
+	int returnIndex = LandVertices.Add(localLandPoint);
+	SeaVertices.Add(localSeaPoint);
 	TexCoords.Add(UV);
 	LandColors.Add(EncodeDepthColor(landRadius - seaRadius));
 	SeaColors.Add(EncodeDepthColor(seaRadius - landRadius));
@@ -558,6 +588,9 @@ void QuadTreeNode::GenerateMeshData() {
 		MinLandRadius = SphereRadius * 10.0;
 		MaxLandRadius = 0.0;
 		MaxNodeRadius = 0.0;
+
+		// Calculate the world-space position of the *unperturbed* chunk center on the sphere
+		FVector unperturbedPoint = Center.GetSafeNormal() * SphereRadius;
 
 		for (int32 x = 0; x < ModifiedResolution; x++) {
 			for (int32 y = 0; y < ModifiedResolution; y++) {
@@ -619,37 +652,45 @@ void QuadTreeNode::GenerateMeshData() {
 		{
 			MaxNodeRadius = FMath::Max(MaxNodeRadius, FVector::Dist(LandCentroid, LandVertices[i]));
 			FVector vertexNormal = FVector::ZeroVector;
+
 			// Calculate the normal by averaging the normals of neighboring triangles
 			for (int32 j = 0; j < AllTriangles.Num(); j++)
 			{
 				auto tri = AllTriangles[j];
 				if (tri[0] == i || tri[1] == i || tri[2] == i)
 				{
+					// Use LOCAL vertex positions for the normal calculation
 					const FVector& P0 = LandVertices[tri[0]];
 					const FVector& P1 = LandVertices[tri[1]];
 					const FVector& P2 = LandVertices[tri[2]];
-					// Calculate the face normal
+
+					// Calculate the face normal using LOCAL vertex positions
 					FVector FaceNormal = FVector::CrossProduct(P1 - P0, P2 - P0).GetSafeNormal();
+
 					// Add the face normal to the vertex normal
 					vertexNormal += FaceNormal;
 				}
 			}
+
 			// Normalize the resulting vertex normal
-			vertexNormal;
-			// Assuming 'center' is the center of your sphere or reference point
-			FVector referenceVector = (LandVertices[i] - sphereCenter).GetSafeNormal();
+			vertexNormal = vertexNormal.GetSafeNormal();
+
+			// Since we're working in local space now, use the local position relative to the unperturbed point for the reference vector
+			FVector referenceVector = (LandVertices[i]+unperturbedPoint).GetSafeNormal(); // Directly use the normalized local vector.
+
+			// Correct normal orientation if needed
 			if (FVector::DotProduct(vertexNormal, referenceVector) < 0)
 			{
 				vertexNormal *= -1; // Invert the normal
 			}
 
-			//normals.Add(vertexNormal);
-			LandNormals.Add((FVector3f)vertexNormal.GetSafeNormal());
+			LandNormals.Add((FVector3f)vertexNormal); // Store the local normal.
 
-			//Calculate sea normal
-			FVector seaNormal = (SeaVertices[i] - sphereCenter).GetSafeNormal();
+			// Calculate sea normal
+			FVector seaNormal = (SeaVertices[i]+unperturbedPoint).GetSafeNormal();
 			SeaNormals.Add((FVector3f)seaNormal);
 		}
+
 		double seaThreshold = 100;
 		if (MinLandRadius - seaThreshold < SphereRadius) RenderSea = true;
 		HasGenerated = true;
